@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de Teclado y Anti-Chattering - Nitrit0 Kit</title>
+<style>
+  :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #10b981; --warn: #ef4444; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; user-select: none; }
+  .header { display: flex; justify-content: space-between; align-items: center; max-width: 1180px; margin: 0 auto 18px; background: var(--card); padding: 16px 24px; border-radius: 12px; border: 1px solid #334155; }
+  .header h1 { margin: 0; font-size: 20px; color: var(--accent); }
+  .stats { display: flex; gap: 18px; font-size: 14px; }
+  .stat-box { background: #020617; padding: 8px 14px; border-radius: 8px; border: 1px solid #334155; }
+  .stat-box b { color: var(--accent); }
+  .kb-container { max-width: 1180px; margin: 0 auto; background: var(--card); padding: 22px; border-radius: 12px; border: 1px solid #334155; }
+  .row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .key { background: #0f172a; border: 1px solid #334155; border-radius: 6px; height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #cbd5e1; transition: all 0.08s; padding: 0 6px; box-sizing: border-box; }
+  .key.active { background: var(--accent); color: #020617; transform: translateY(2px); box-shadow: 0 0 12px var(--accent); }
+  .key.tested { background: #065f46; border-color: var(--ok); color: #ecfdf5; }
+  .key.chatter { background: #7f1d1d !important; border-color: var(--warn) !important; color: #fecaca !important; animation: pulse 0.5s; }
+  .w-15 { min-width: 68px; } .w-20 { min-width: 90px; } .w-25 { min-width: 112px; } .w-space { flex: 1; min-width: 260px; }
+  .btn { background: var(--accent); color: #020617; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
+  .log-panel { max-width: 1180px; margin: 18px auto 0; background: var(--card); padding: 16px 24px; border-radius: 12px; border: 1px solid #334155; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>Prueba de Teclado Español (ISO) + Detector de Doble Pulsación (Chattering)</h1>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">Pulsa todas las teclas para marcarlas en verde. Si un switch rebota en &lt; 28 ms se marcará en ROJO.</div>
+  </div>
+  <div class="stats">
+    <div class="stat-box">Teclas probadas: <b id="cntTested">0</b></div>
+    <div class="stat-box">Simultáneas (NKRO): <b id="cntNkro">0</b> (Máx: <b id="maxNkro">0</b>)</div>
+    <div class="stat-box">Rebotes (Chatter): <b id="cntChatter" style="color:#ef4444;">0</b></div>
+    <button class="btn" onclick="resetBoard()">Reiniciar</button>
+  </div>
+</div>
+
+<div class="kb-container" id="keyboard">
+  <div class="row">
+    <div class="key" data-code="Escape">ESC</div>
+    <div class="key" data-code="F1">F1</div><div class="key" data-code="F2">F2</div><div class="key" data-code="F3">F3</div><div class="key" data-code="F4">F4</div>
+    <div class="key" data-code="F5">F5</div><div class="key" data-code="F6">F6</div><div class="key" data-code="F7">F7</div><div class="key" data-code="F8">F8</div>
+    <div class="key" data-code="F9">F9</div><div class="key" data-code="F10">F10</div><div class="key" data-code="F11">F11</div><div class="key" data-code="F12">F12</div>
+    <div class="key" data-code="PrintScreen">ImpPnt</div><div class="key" data-code="ScrollLock">BloqDes</div><div class="key" data-code="Pause">Pausa</div>
+    <div class="key" data-code="Insert">Ins</div><div class="key" data-code="Home">Inicio</div><div class="key" data-code="PageUp">RePág</div>
+    <div class="key" data-code="Delete">Supr</div><div class="key" data-code="End">Fin</div><div class="key" data-code="PageDown">AvPág</div>
+  </div>
+  <div class="row">
+    <div class="key" data-code="Backquote">º \</div><div class="key" data-code="Digit1">1</div><div class="key" data-code="Digit2">2</div><div class="key" data-code="Digit3">3</div>
+    <div class="key" data-code="Digit4">4</div><div class="key" data-code="Digit5">5</div><div class="key" data-code="Digit6">6</div><div class="key" data-code="Digit7">7</div>
+    <div class="key" data-code="Digit8">8</div><div class="key" data-code="Digit9">9</div><div class="key" data-code="Digit0">0</div><div class="key" data-code="Minus">' ?</div>
+    <div class="key" data-code="Equal">¡ ¿</div><div class="key w-20" data-code="Backspace">Retroceso</div>
+    <div class="key" data-code="NumLock">BloqNum</div><div class="key" data-code="NumpadDivide">/</div><div class="key" data-code="NumpadMultiply">*</div><div class="key" data-code="NumpadSubtract">-</div>
+  </div>
+  <div class="row">
+    <div class="key w-15" data-code="Tab">Tab</div><div class="key" data-code="KeyQ">Q</div><div class="key" data-code="KeyW">W</div><div class="key" data-code="KeyE">E</div>
+    <div class="key" data-code="KeyR">R</div><div class="key" data-code="KeyT">T</div><div class="key" data-code="KeyY">Y</div><div class="key" data-code="KeyU">U</div>
+    <div class="key" data-code="KeyI">I</div><div class="key" data-code="KeyO">O</div><div class="key" data-code="KeyP">P</div><div class="key" data-code="BracketLeft">` [</div>
+    <div class="key" data-code="BracketRight">+ ]</div><div class="key w-15" data-code="Enter">Enter</div>
+    <div class="key" data-code="Numpad7">7</div><div class="key" data-code="Numpad8">8</div><div class="key" data-code="Numpad9">9</div><div class="key" data-code="NumpadAdd">+</div>
+  </div>
+  <div class="row">
+    <div class="key w-20" data-code="CapsLock">Bloq Mayús</div><div class="key" data-code="KeyA">A</div><div class="key" data-code="KeyS">S</div><div class="key" data-code="KeyD">D</div>
+    <div class="key" data-code="KeyF">F</div><div class="key" data-code="KeyG">G</div><div class="key" data-code="KeyH">H</div><div class="key" data-code="KeyJ">J</div>
+    <div class="key" data-code="KeyK">K</div><div class="key" data-code="KeyL">L</div><div class="key" data-code="Semicolon">Ñ</div><div class="key" data-code="Quote">´ {</div>
+    <div class="key" data-code="Backslash">Ç }</div>
+    <div class="key" data-code="Numpad4">4</div><div class="key" data-code="Numpad5">5</div><div class="key" data-code="Numpad6">6</div>
+  </div>
+  <div class="row">
+    <div class="key w-15" data-code="ShiftLeft">Shift Izq</div><div class="key" data-code="IntlBackslash">&lt; &gt;</div><div class="key" data-code="KeyZ">Z</div><div class="key" data-code="KeyX">X</div>
+    <div class="key" data-code="KeyC">C</div><div class="key" data-code="KeyV">V</div><div class="key" data-code="KeyB">B</div><div class="key" data-code="KeyN">N</div>
+    <div class="key" data-code="KeyM">M</div><div class="key" data-code="Comma">, ;</div><div class="key" data-code="Period">. :</div><div class="key" data-code="Slash">- _</div>
+    <div class="key w-25" data-code="ShiftRight">Shift Der</div>
+    <div class="key" data-code="ArrowUp">↑</div>
+    <div class="key" data-code="Numpad1">1</div><div class="key" data-code="Numpad2">2</div><div class="key" data-code="Numpad3">3</div><div class="key" data-code="NumpadEnter">Intro</div>
+  </div>
+  <div class="row">
+    <div class="key w-15" data-code="ControlLeft">Ctrl Izq</div><div class="key" data-code="MetaLeft">Win</div><div class="key w-15" data-code="AltLeft">Alt</div>
+    <div class="key w-space" data-code="Space">Espacio</div>
+    <div class="key w-15" data-code="AltRight">AltGr</div><div class="key" data-code="ContextMenu">Menú</div><div class="key w-15" data-code="ControlRight">Ctrl Der</div>
+    <div class="key" data-code="ArrowLeft">←</div><div class="key" data-code="ArrowDown">↓</div><div class="key" data-code="ArrowRight">→</div>
+    <div class="key w-20" data-code="Numpad0">0</div><div class="key" data-code="NumpadDecimal">.</div>
+  </div>
+</div>
+
+<div class="log-panel" id="lastKeyInfo">Esperando pulsación de tecla...</div>
+
+<script>
+const pressedNow = new Set();
+const testedSet = new Set();
+const lastUpTime = {};
+let maxNkro = 0;
+let chatterCount = 0;
+
+window.addEventListener('keydown', (e) => {
+  e.preventDefault();
+  const code = e.code;
+  const now = performance.now();
+  const el = document.querySelector(`.key[data-code="${code}"]`);
+
+  if (!e.repeat && lastUpTime[code] && (now - lastUpTime[code]) < 28) {
+    chatterCount++;
+    document.getElementById('cntChatter').textContent = chatterCount;
+    if (el) el.classList.add('chatter');
+    document.getElementById('lastKeyInfo').innerHTML = `<b style="color:#ef4444">[ALERTA CHATTERING]</b> Rebote mecánico detectado en <b>${code}</b> (${Math.round(now - lastUpTime[code])} ms entre pulsaciones).`;
+  } else {
+    document.getElementById('lastKeyInfo').innerHTML = `Última tecla: <b>${e.key}</b> | Código físico: <b>${code}</b> | KeyCode: <b>${e.keyCode}</b>`;
+  }
+
+  pressedNow.add(code);
+  testedSet.add(code);
+  if (pressedNow.size > maxNkro) maxNkro = pressedNow.size;
+
+  if (el) {
+    el.classList.add('active', 'tested');
+  }
+  updateCounters();
+});
+
+window.addEventListener('keyup', (e) => {
+  e.preventDefault();
+  const code = e.code;
+  lastUpTime[code] = performance.now();
+  pressedNow.delete(code);
+  const el = document.querySelector(`.key[data-code="${code}"]`);
+  if (el) el.classList.remove('active');
+  updateCounters();
+});
+
+function updateCounters() {
+  document.getElementById('cntTested').textContent = testedSet.size;
+  document.getElementById('cntNkro').textContent = pressedNow.size;
+  document.getElementById('maxNkro').textContent = maxNkro;
+}
+
+function resetBoard() {
+  pressedNow.clear();
+  testedSet.clear();
+  maxNkro = 0;
+  chatterCount = 0;
+  document.getElementById('cntChatter').textContent = '0';
+  document.querySelectorAll('.key').forEach(k => k.classList.remove('active', 'tested', 'chatter'));
+  updateCounters();
+}
+</script>
+</body>
+</html>

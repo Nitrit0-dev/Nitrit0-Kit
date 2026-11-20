@@ -1,0 +1,67 @@
+{
+  "name": "nitrit0-app",
+  "version": "0.1.0",
+  "description": "Nitrit0 Kit: app de soporte técnico (interfaz Electron sobre los scripts del kit)",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "tipos": "tsc --noEmit -p tsconfig.json",
+    "empaquetar": "electron-vite build && node empaquetar.mjs",
+    "empaquetar:unico": "electron-vite build && electron-builder --win portable --x64 && node poner_icono.mjs \"bin-unico/win-unpacked/Nitrit0 Kit.exe\"",
+    "limpieza": "electron-vite build --config electron.vite.limpieza.config.ts && electron-builder --config electron-builder.limpieza.json --win portable --x64 && node poner_icono.mjs \"bin-limpieza/win-unpacked/Nitrit0 Limpieza.exe\""
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "lucide-react": "^1.72.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "build": {
+    "appId": "es.nitrit0.kit",
+    "productName": "Nitrit0 Kit",
+    "electronVersion": "45.3.1",
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "bin-unico"
+    },
+    "extraResources": [{ "from": "build/icono-256.png", "to": "icono.png" }],
+    "files": [
+      "out/**",
+      "package.json",
+      "!**/node_modules/**"
+    ],
+    "compression": "maximum",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icono.ico",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "Nitrit0.exe",
+      "requestExecutionLevel": "admin"
+    }
+  }
+}

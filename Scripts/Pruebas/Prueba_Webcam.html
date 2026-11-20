@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de webcam - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#2bc4d8; --ok:#35c58f; --err:#ff5c5c; --warn:#ffb020; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; }
+  header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:1100px; margin:0 auto; padding:22px 28px 40px; display:grid; grid-template-columns:1fr 300px; gap:22px; }
+  @media (max-width:860px) { main { grid-template-columns:1fr; } }
+  .visor { background:#000; border:1px solid var(--line); border-radius:16px; overflow:hidden; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; position:relative; }
+  video { width:100%; height:100%; object-fit:contain; background:#000; }
+  video.espejo { transform:scaleX(-1); }
+  .msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:var(--mut); }
+  .msg.err { color:var(--err); } .msg.oculto { display:none; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:16px; }
+  .panel h2 { margin:0 0 10px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); font-weight:600; }
+  label { display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; }
+  select, button { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px 12px; font:inherit; }
+  button { cursor:pointer; font-weight:600; margin-top:8px; }
+  button:hover:not(:disabled) { border-color:var(--acc); }
+  button:disabled { opacity:.45; cursor:default; }
+  button.principal { background:var(--acc); color:#06222a; border-color:var(--acc); }
+  .fila { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:14px; }
+  dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:14px; }
+  dt { color:var(--mut); } dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  .ayuda { font-size:13px; color:var(--mut); }
+  .ayuda li { margin-bottom:4px; }
+  .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#087f91;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#087f91;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] .principal,:root[data-tema="claro"] button.p,:root[data-tema="claro"] #ini{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) .principal,:root:not([data-tema="oscuro"]) button.p,:root:not([data-tema="oscuro"]) #ini{color:#fff!important}}</style>
+
+</head>
+<body>
+<header>
+  <h1>Prueba de webcam</h1>
+  <p>Funciona sin instalar nada y sin internet. Tu imagen no sale del equipo.</p>
+</header>
+<main>
+  <section>
+    <div class="visor">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="msg" id="msg">Pulsa «Iniciar cámara» y acepta el permiso del navegador.</div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Si no funciona</h2>
+      <ul class="ayuda">
+        <li><b>Permiso denegado:</b> Windows → Configuración → Privacidad y seguridad → Cámara, y activa «Permitir que las aplicaciones de escritorio accedan a la cámara».</li>
+        <li><b>No se detecta cámara:</b> mira el Administrador de dispositivos (¿aparece en «Cámaras» o con aviso amarillo?), prueba otro puerto USB y revisa el interruptor físico o la tecla Fn de la cámara.</li>
+        <li><b>Cámara en uso:</b> cierra Teams, Zoom, Skype u otras pestañas que la estén usando.</li>
+      </ul>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>Control</h2>
+      <label for="cam">Cámara</label>
+      <select id="cam"><option value="">(buscando cámaras…)</option></select>
+      <label for="res">Resolución</label>
+      <select id="res">
+        <option value="640x480">640 × 480</option>
+        <option value="1280x720" selected>1280 × 720 (HD)</option>
+        <option value="1920x1080">1920 × 1080 (Full HD)</option>
+      </select>
+      <button class="principal" id="ini">Iniciar cámara</button>
+      <button id="par" disabled>Detener</button>
+      <button id="foto" disabled>Capturar foto</button>
+      <div class="fila"><input type="checkbox" id="esp" checked> <label for="esp" style="margin:0;color:var(--txt)">Efecto espejo</label></div>
+    </div>
+    <div class="panel">
+      <h2>Datos en vivo</h2>
+      <dl>
+        <dt>Estado</dt><dd id="d-estado">Parada</dd>
+        <dt>Resolución real</dt><dd id="d-res">-</dd>
+        <dt>Fotogramas/s</dt><dd id="d-fps">-</dd>
+        <dt>Cámara</dt><dd id="d-nom" style="word-break:break-word">-</dd>
+      </dl>
+    </div>
+  </aside>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var video = $('video'), msg = $('msg'), cam = $('cam'), res = $('res');
+  var stream = null, contador = 0, tFps = 0, timerFps = null;
+
+  function mostrar(texto, esError) { msg.textContent = texto; msg.className = 'msg' + (esError ? ' err' : ''); }
+  function ocultarMsg() { msg.className = 'msg oculto'; }
+
+  function explicarError(e) {
+    switch (e && e.name) {
+      case 'NotAllowedError': case 'SecurityError':
+        return 'Permiso denegado. Acepta el aviso del navegador, o activa el acceso a la cámara en Windows (Configuración → Privacidad y seguridad → Cámara).';
+      case 'NotFoundError': case 'DevicesNotFoundError':
+        return 'No se detecta ninguna cámara. Revisa el cable o puerto USB, el Administrador de dispositivos y el interruptor físico de la cámara.';
+      case 'NotReadableError': case 'TrackStartError':
+        return 'La cámara está en uso por otro programa o no responde. Cierra Teams, Zoom u otras pestañas e inténtalo de nuevo.';
+      case 'OverconstrainedError':
+        return 'La cámara no admite esa resolución. Prueba con una menor.';
+      default:
+        return 'Error: ' + (e && (e.name + ' ' + (e.message || '')) || 'desconocido');
+    }
+  }
+
+  async function listar() {
+    var lista = await navigator.mediaDevices.enumerateDevices();
+    var camaras = lista.filter(function (d) { return d.kind === 'videoinput'; });
+    var actual = cam.value;
+    cam.innerHTML = '';
+    camaras.forEach(function (d, i) {
+      var o = document.createElement('option');
+      o.value = d.deviceId; o.textContent = d.label || ('Cámara ' + (i + 1));
+      cam.appendChild(o);
+    });
+    if (!camaras.length) cam.innerHTML = '<option value="">(no se detecta ninguna cámara)</option>';
+    // sin permiso concedido Chromium da deviceId vacío: no se puede elegir cámara hasta iniciar la primera vez
+    else if (camaras.every(function (d) { return !d.deviceId; })) cam.innerHTML = '<option value="">Cámara predeterminada (podrás elegir otra al iniciar)</option>';
+    if (actual) cam.value = actual;
+  }
+
+  function medirFps() {
+    if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) { $('d-fps').textContent = 'n/d'; return; }
+    contador = 0; tFps = performance.now();
+    var paso = function () { contador++; if (stream) video.requestVideoFrameCallback(paso); };
+    video.requestVideoFrameCallback(paso);
+    clearInterval(timerFps);
+    timerFps = setInterval(function () {
+      var ahora = performance.now();
+      $('d-fps').textContent = (contador * 1000 / (ahora - tFps)).toFixed(1);
+      contador = 0; tFps = ahora;
+    }, 1000);
+  }
+
+  async function iniciar() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      mostrar('Este navegador no permite usar la cámara desde un archivo local. Abre la página con Edge o Chrome.', true); return;
+    }
+    detener(true);
+    var p = res.value.split('x');
+    var video_c = { width: { ideal: +p[0] }, height: { ideal: +p[1] } };
+    if (cam.value) video_c.deviceId = { exact: cam.value };
+    $('d-estado').textContent = 'Iniciando…'; mostrar('Iniciando cámara…', false);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: video_c, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      ocultarMsg();
+      var t = stream.getVideoTracks()[0], s = t.getSettings();
+      $('d-estado').textContent = 'En marcha';
+      $('d-estado').style.color = 'var(--ok)';
+      $('d-nom').textContent = t.label || '-';
+      $('d-res').textContent = (s.width || video.videoWidth) + ' × ' + (s.height || video.videoHeight);
+      t.addEventListener('ended', function () { detener(false); mostrar('La cámara se ha desconectado o dejado de responder.', true); });
+      $('ini').disabled = false; $('par').disabled = false; $('foto').disabled = false;
+      await listar();
+      if (s.deviceId) cam.value = s.deviceId;
+      medirFps();
+    } catch (e) {
+      stream = null;
+      $('d-estado').textContent = 'Error'; $('d-estado').style.color = 'var(--err)';
+      mostrar(explicarError(e), true);
+      listar().catch(function () {});
+    }
+  }
+
+  function detener(silencioso) {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    video.srcObject = null; clearInterval(timerFps);
+    $('par').disabled = true; $('foto').disabled = true;
+    $('d-fps').textContent = '-'; $('d-res').textContent = '-';
+    if (!silencioso) {
+      $('d-estado').textContent = 'Parada'; $('d-estado').style.color = '';
+      mostrar('Cámara detenida.', false);
+    }
+  }
+
+  function capturar() {
+    if (!stream || !video.videoWidth) return;
+    var c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
+    var g = c.getContext('2d');
+    if ($('esp').checked) { g.translate(c.width, 0); g.scale(-1, 1); }
+    g.drawImage(video, 0, 0);
+    var a = document.createElement('a');
+    a.download = 'webcam_' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+    a.href = c.toDataURL('image/png'); a.click();
+  }
+
+  $('ini').addEventListener('click', iniciar);
+  $('par').addEventListener('click', function () { detener(false); });
+  $('foto').addEventListener('click', capturar);
+  $('esp').addEventListener('change', function () { video.className = this.checked ? 'espejo' : ''; });
+  cam.addEventListener('change', function () { if (stream) iniciar(); });
+  res.addEventListener('change', function () { if (stream) iniciar(); });
+  video.className = 'espejo';
+  window.addEventListener('beforeunload', function () { detener(true); });
+  // la lista de cámaras aparece al abrir (sin permiso los nombres vienen vacíos y salen como «Cámara 1…»), al conectar/desconectar y tras un error
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    listar().catch(function () {});
+    if (navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', function () { listar().catch(function () {}); });
+  }
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"\u263E  Modo oscuro":"\u2600  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>

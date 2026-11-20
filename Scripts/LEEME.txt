@@ -1,0 +1,36 @@
+﻿KIT NITRIT0 - LÉEME
+===================
+Abre "Nitrit0.exe" (pide permisos de administrador). Si no arranca en un equipo, queda el lanzador clásico de emergencia: "Scripts\Iniciar (sin exe).bat".
+
+Carpetas
+  Apps\     Herramientas portables (CPU, Disco, Memoria...), Librerias\. El pack público no lleva licencias ni claves de producto; el personal sí (Licencias\ y Office).
+  Datos\    Lo que genera el kit: Informes\, Historial\, Logs\ (un log por equipo y día), Respaldo\ (versiones anteriores de herramientas), Salidas\.
+  Scripts\  Catalogo_Kit.ps1 (el catálogo), Lanzador.ps1 (lanzador clásico de emergencia), Comun.ps1 (reintentos y espera del pendrive), Ejecutor.ps1, Mantenimiento\ (scripts) y Pruebas\.
+
+Añadir un script:        copia el .ps1 a Scripts\Mantenimiento y declara su ficha en Catalogo.psd1 (sin ficha no se lista ni se ejecuta); después vuelve a generar la integridad.
+Añadir una herramienta:  copia su carpeta a Apps\<categoría> y añade una línea en $Herramientas de Scripts\Catalogo_Kit.ps1.
+Funciona desde cualquier ruta o unidad: no hay letras de unidad fijas.
+
+Si el pendrive se desconecta
+  - Los instaladores y licencias se copian a %TEMP%\Nitrit0_Cache antes de usarse, y cada paso tiene tiempo máximo y reintentos.
+  - El lanzador avisa en la barra inferior, espera a que vuelva (aunque cambie de letra) y lo anota en Datos\Logs.
+  - Mantenimiento > "Salud Pendrive" muestra velocidad, desconexiones registradas e integridad del kit.
+
+Equipos que no arrancan
+  El kit necesita un Windows funcionando. Para preparar el pendrive también como disco de rescate (Ventoy + ISO), sigue Scripts\LEEME_Rescate.txt.
+
+Integridad del kit
+  Datos\Integridad.json es la lista de referencia de archivos de Apps\ y Scripts\. Los scripts y los ejecutables de Apps\ (.exe, .dll, .sys, .msi, .ps1, .bat, .cmd, .vbs, .js) llevan huella SHA-256;
+  el resto, solo tamaño. "Salud Pendrive" avisa si falta alguno o ha cambiado (con -Rapido no calcula las huellas de Apps\).
+  Lista blanca: el kit solo ejecuta scripts que figuran en Integridad.json con su huella; si uno cambia o no consta, se bloquea con un error crítico hasta regenerar.
+  Después de añadir o actualizar herramientas o scripts a propósito, pasa primero Scripts\Validar_Kit.ps1 (comprueba sintaxis,
+  codificación, catálogo y tarjetas; con -Corregir arregla la codificación) y, si no da errores, vuelve a generarla ejecutando
+  Scripts\Regenerar_Integridad.ps1.
+  (No se regenera sola al abrir el lanzador: si lo hiciera, nunca detectaría un archivo perdido.)
+
+Aviso legal y licencias
+  - Este software se entrega "TAL CUAL" (AS IS), sin garantía de ningún tipo, expresa ni implícita.
+  - Haz una copia de seguridad de tus datos antes de usar cualquier herramienta de reparación: eres el único responsable de lo que hagas con él.
+  - Las herramientas portables de la carpeta Apps\ pertenecen a sus respectivos autores y se rigen por sus propias licencias
+    (en general, de uso personal o evaluación). Este kit no las vende ni las relicencia; consulta la licencia de cada una antes de usarlas
+    con fines comerciales o de redistribuirlas.

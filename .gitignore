@@ -1,0 +1,22 @@
+# Herramientas portables de terceros (cada una con su licencia: se descargan de su web oficial, no se versionan)
+/Apps/
+# Lo que genera el kit al usarse: informes, registros, historial, copias de seguridad (pueden contener datos de clientes)
+/Datos/
+# Paquetes y compilados
+*.exe
+*.dll
+!/Scripts/Recursos/Nit.Ejecutor.dll
+/App/node_modules/
+/App/out/
+/App/out-limpieza/
+/App/dist/
+/App/bin*/
+# Registros, temporales y volcados
+*.log
+*.tmp
+*.bak
+*.dmp
+Thumbs.db
+# Carpetas de trabajo y de empaquetado
+/_Extras_Personales/
+/.mimocode/

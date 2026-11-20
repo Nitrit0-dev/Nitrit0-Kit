@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de placa de vídeo - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#8b9bff; --ok:#35c58f; --err:#ff5c5c; --warn:#ffb454; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; } header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:980px; margin:0 auto; padding:22px 28px 40px; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:820px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .ancho { grid-column:1 / -1; }
+  .panel h2 { margin:0 0 12px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); }
+  button { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px; font:600 14px "Segoe UI",sans-serif; cursor:pointer; margin-top:8px; }
+  button:hover:not(:disabled) { border-color:var(--acc); } button:disabled { opacity:.45; cursor:default; }
+  button.p { background:var(--acc); color:#10142b; border-color:var(--acc); }
+  label { display:block; font-size:13px; color:var(--mut); margin:12px 0 4px; }
+  select { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px; font:inherit; }
+  .barra { height:14px; background:var(--head); border:1px solid var(--line); border-radius:999px; overflow:hidden; margin-top:14px; }
+  .barra div { height:100%; width:0; background:var(--acc); transition:width .3s; }
+  dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:14px; } dt { color:var(--mut); } dd { margin:0; text-align:right; word-break:break-word; font-variant-numeric:tabular-nums; }
+  .veredicto { border-radius:14px; padding:16px 20px; border:1px solid var(--line); border-left-width:6px; background:var(--card); }
+  .veredicto h3 { margin:0; font-size:20px; } .veredicto p { margin:6px 0 0; color:var(--mut); }
+  .veredicto.pasa { border-left-color:var(--ok); } .veredicto.pasa h3 { color:var(--ok); }
+  .veredicto.falla { border-left-color:var(--err); } .veredicto.falla h3 { color:var(--err); }
+  .veredicto.noeval { border-left-color:var(--warn); } .veredicto.noeval h3 { color:var(--warn); }
+  .ayuda { margin:0; padding-left:20px; color:var(--cuerpo); font-size:14px; } .ayuda li { margin:6px 0; }
+  #log { max-height:170px; overflow:auto; font:12px/1.5 Consolas,monospace; background:var(--pre); color:var(--pretxt); border-radius:10px; padding:10px 12px; white-space:pre-wrap; margin:0; }
+  .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#3b4fd8;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#3b4fd8;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] button.p{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) button.p{color:#fff!important}}</style>
+</head>
+<body>
+<header><h1>Prueba de placa de vídeo (GPU)</h1><p>Comprueba que la memoria de vídeo y el cálculo de la placa son fiables, con carga sostenida. Funciona sin internet y no se guarda nada.</p></header>
+<main>
+  <section class="panel">
+    <h2>Control</h2>
+    <label for="dur">Duración</label>
+    <select id="dur"><option value="60">1 minuto (rápida)</option><option value="300" selected>5 minutos</option><option value="900">15 minutos (a fondo)</option></select>
+    <label for="mem">Memoria de vídeo a probar</label>
+    <select id="mem"><option value="512">512 MB</option><option value="1024" selected>1 GB</option><option value="2048">2 GB</option></select>
+    <button id="ini" class="p">Iniciar prueba</button>
+    <button id="par" disabled>Detener</button>
+    <div class="barra"><div id="prog"></div></div>
+    <p class="msg" style="font-size:13px;color:var(--mut);margin:10px 0 0">Cierra juegos y programas pesados antes de empezar. La pantalla puede ir algo lenta mientras dura la prueba.</p>
+  </section>
+  <section class="panel">
+    <h2>Datos en vivo</h2>
+    <dl>
+      <dt>Estado</dt><dd id="d-estado">Sin empezar</dd>
+      <dt>Placa</dt><dd id="d-placa">-</dd>
+      <dt>Pasada</dt><dd id="d-pasada">-</dd>
+      <dt>Memoria probada</dt><dd id="d-mem">-</dd>
+      <dt>Errores de memoria</dt><dd id="d-errmem">-</dd>
+      <dt>Errores de cálculo</dt><dd id="d-errcalc">-</dd>
+      <dt>Lotes de cálculo</dt><dd id="d-lotes">-</dd>
+      <dt>Tiempo por lote</dt><dd id="d-ms">-</dd>
+    </dl>
+  </section>
+  <section class="ancho" id="veredicto" hidden></section>
+  <section class="panel ancho">
+    <h2>Cómo se hace</h2>
+    <ul class="ayuda">
+      <li><b>Memoria de vídeo:</b> llena bloques de 256 MB con patrones distintos (aleatorio, 0xAA, 0x55, todo unos y todo ceros) y los relee dentro de la propia placa; cualquier byte distinto cuenta como error.</li>
+      <li><b>Cálculo verificado:</b> más de un millón de hilos hacen cuentas enteras y de coma flotante; se hacen dos veces y se comparan, y una muestra se recalcula además en el procesador.</li>
+      <li><b>Carga sostenida:</b> lotes de unos 0,25 s (lejos del límite en que Windows reinicia el driver) durante el tiempo elegido, repitiendo la prueba de memoria cada minuto.</li>
+      <li><b>Regla de oro:</b> si la prueba no se puede hacer (sin WebGPU, placa por software, sin memoria libre), el resultado es «No evaluado», nunca «Falla».</li>
+    </ul>
+  </section>
+  <section class="panel ancho"><h2>Registro</h2><pre id="log"></pre></section>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var BUF = 256 * 1024 * 1024, ELEM = BUF / 4, HILOS = 4096 * 256;   // buffer de 256 MB; 1.048.576 hilos por lote
+  var detener = false, corriendo = false;
+
+  var WGSL_MEM = [
+    'struct P { seed: u32, base: u32, mode: u32, n: u32 };',
+    '@group(0) @binding(0) var<storage, read_write> buf: array<u32>;',
+    '@group(0) @binding(1) var<uniform> p: P;',
+    '@group(0) @binding(2) var<storage, read_write> err: array<atomic<u32>, 2>;',
+    'fn mix(x0: u32) -> u32 { var x = x0; x ^= x >> 16u; x *= 0x7feb352du; x ^= x >> 15u; x *= 0x846ca68bu; x ^= x >> 16u; return x; }',
+    'fn pat(i: u32) -> u32 {',
+    '  if (p.mode == 0u) { return mix((i + p.base) ^ p.seed); }',
+    '  if (p.mode == 1u) { return 0xAAAAAAAAu; }',
+    '  if (p.mode == 2u) { return 0x55555555u; }',
+    '  if (p.mode == 3u) { return 0xFFFFFFFFu; }',
+    '  return 0u;',
+    '}',
+    '@compute @workgroup_size(256) fn fill(@builtin(global_invocation_id) g: vec3<u32>, @builtin(num_workgroups) nw: vec3<u32>) {',
+    '  let stride = nw.x * 256u; var i = g.x;',
+    '  loop { if (i >= p.n) { break; } buf[i] = pat(i); i += stride; }',
+    '}',
+    '@compute @workgroup_size(256) fn verify(@builtin(global_invocation_id) g: vec3<u32>, @builtin(num_workgroups) nw: vec3<u32>) {',
+    '  let stride = nw.x * 256u; var i = g.x;',
+    '  loop { if (i >= p.n) { break; } if (buf[i] != pat(i)) { atomicAdd(&err[0], 1u); atomicMin(&err[1], i); } i += stride; }',
+    '}'
+  ].join('\n');
+
+  var WGSL_CALC = [
+    'struct C { seed: u32, iters: u32 };',
+    '@group(0) @binding(0) var<uniform> c: C;',
+    '@group(0) @binding(1) var<storage, read_write> oi: array<u32>;',
+    '@group(0) @binding(2) var<storage, read_write> outf: array<f32>;',
+    '@compute @workgroup_size(256) fn calc(@builtin(global_invocation_id) g: vec3<u32>) {',
+    '  var x = g.x * 2654435761u + c.seed;',
+    '  var f = f32(g.x % 1024u) * 0.001 + 1.0;',
+    '  for (var k = 0u; k < c.iters; k++) {',
+    '    x ^= x << 13u; x ^= x >> 17u; x ^= x << 5u; x = x * 1664525u + 1013904223u;',
+    '    f = fma(f, 1.0000001, 0.0000003); if (f > 4.0) { f = f - 3.0; }',
+    '  }',
+    '  oi[g.x] = x; outf[g.x] = f;',
+    '}'
+  ].join('\n');
+
+  var WGSL_CMP = [
+    '@group(0) @binding(0) var<storage, read> ai: array<u32>;',
+    '@group(0) @binding(1) var<storage, read> bi: array<u32>;',
+    '@group(0) @binding(2) var<storage, read> af: array<f32>;',
+    '@group(0) @binding(3) var<storage, read> bf: array<f32>;',
+    '@group(0) @binding(4) var<storage, read_write> err: array<atomic<u32>, 2>;',
+    '@compute @workgroup_size(256) fn cmp(@builtin(global_invocation_id) g: vec3<u32>) {',
+    '  if (ai[g.x] != bi[g.x] || bitcast<u32>(af[g.x]) != bitcast<u32>(bf[g.x])) { atomicAdd(&err[0], 1u); }',
+    '}'
+  ].join('\n');
+
+  function log(t) { var l = $('log'); l.textContent += new Date().toLocaleTimeString('es-ES') + '  ' + t + '\n'; l.scrollTop = l.scrollHeight; }
+  function dato(id, v) { $(id).textContent = v; }
+  function veredicto(tipo, titulo, texto, consejos) {
+    var v = $('veredicto'); v.hidden = false; v.className = 'veredicto ' + tipo;
+    v.innerHTML = '<h3></h3><p></p>' + (consejos && consejos.length ? '<ul class="ayuda"></ul>' : '');
+    v.querySelector('h3').textContent = titulo; v.querySelector('p').textContent = texto;
+    if (consejos && consejos.length) consejos.forEach(function (c) { var li = document.createElement('li'); li.textContent = c; v.querySelector('ul').appendChild(li); });
+    window.__nitResultado = { tipo: tipo, titulo: titulo, texto: texto };
+  }
+  var espera = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  function cpuXs(i, seed, iters) {   // misma cuenta entera que el shader, en el procesador
+    var x = (Math.imul(i, 2654435761) + seed) >>> 0;
+    for (var k = 0; k < iters; k++) {
+      x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0;
+      x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    }
+    return x;
+  }
+
+  async function ejecutar(opc) {
+    var seg = opc.duracionSeg, memMB = opc.memMB;
+    var t0 = performance.now(), fin = t0 + seg * 1000;
+    var errMem = 0, errCalc = 0, perdido = null, internos = [], lotes = 0, pasadas = 0;
+    var device = null, buffers = [];
+    function noEvaluado(t) { veredicto('noeval', 'No evaluado', t, ['Esto no significa que la placa esté mal: la prueba no se pudo hacer en este equipo.']); dato('d-estado', 'No evaluado'); }
+
+    if (!navigator.gpu) return noEvaluado('Este equipo no ofrece WebGPU en la app, así que no se puede probar la placa de esta forma. Usa FurMark u OCCT desde Herramientas.');
+    var adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return noEvaluado('Windows no ha dado ninguna placa de vídeo a la app (¿driver sin instalar o desactivado?).');
+    var info = adapter.info || {};
+    var nombre = [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' · ') || 'Placa de vídeo';
+    var software = info.isFallbackAdapter === true || adapter.isFallbackAdapter === true || /warp|swiftshader|llvmpipe|microsoft basic/i.test(nombre);
+    dato('d-placa', nombre); log('Placa: ' + nombre);
+    if (software) return noEvaluado('La placa que ofrece Windows es una emulación por software, no la placa real: no se prueba.');
+
+    try {
+      var lim = adapter.limits;
+      if (lim.maxBufferSize < BUF || lim.maxStorageBufferBindingSize < BUF) return noEvaluado('El driver no admite bloques de 256 MB (máximo ' + Math.floor(Math.min(lim.maxBufferSize, lim.maxStorageBufferBindingSize) / 1048576) + ' MB).');
+      device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: BUF, maxStorageBufferBindingSize: BUF } });
+    } catch (e) { return noEvaluado('No se pudo abrir la placa: ' + e.message); }
+    device.lost.then(function (l) { if (l.reason !== 'destroyed') { perdido = l; log('¡Dispositivo perdido! ' + l.reason + ': ' + l.message); } });
+    device.addEventListener('uncapturederror', function (e) { internos.push(e.error.message); log('Error del driver: ' + e.error.message); });
+
+    function falla(extra) {
+      var motivos = [];
+      if (errMem) motivos.push(errMem + ' errores en la memoria de vídeo');
+      if (errCalc) motivos.push(errCalc + ' resultados de cálculo distintos');
+      if (perdido) motivos.push('el driver de la placa se reinició o se colgó');
+      veredicto('falla', 'Falla', (extra || '') + 'Se han detectado: ' + motivos.join(', ') + '.', [
+        'Errores en la memoria de vídeo: suelen ser por memoria defectuosa, sobrecalentamiento u overclock. Quita el overclock y repite la prueba.',
+        'Si el driver se reinicia o hay resultados distintos con la placa a su velocidad de fábrica, puede ser fuente de alimentación justa, temperatura alta o placa dañada.',
+        'Repite la prueba con la placa en otro equipo si es posible, antes de dar el diagnóstico definitivo.']);
+      dato('d-estado', 'Falla');
+    }
+
+    try {
+      // ---- reserva de memoria ----
+      var n = Math.max(1, Math.floor(memMB / 256));
+      device.pushErrorScope('out-of-memory');
+      for (var i = 0; i < n; i++) buffers.push(device.createBuffer({ size: BUF, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }));
+      var oom = await device.popErrorScope();
+      if (oom) { buffers.forEach(function (b) { b.destroy(); }); buffers = []; return noEvaluado('No hay memoria de vídeo libre para ' + memMB + ' MB. Cierra programas o elige menos memoria.'); }
+      dato('d-mem', (n * 256) + ' MB'); log('Reservados ' + n + ' bloques de 256 MB');
+
+      var mMem = device.createShaderModule({ code: WGSL_MEM });
+      var pFill = device.createComputePipeline({ layout: 'auto', compute: { module: mMem, entryPoint: 'fill' } });
+      var pVer = device.createComputePipeline({ layout: 'auto', compute: { module: mMem, entryPoint: 'verify' } });
+      var uni = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      var err = device.createBuffer({ size: 8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      var leer = device.createBuffer({ size: 8, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      var bgF = buffers.map(function (b) { return device.createBindGroup({ layout: pFill.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: b } }, { binding: 1, resource: { buffer: uni } }] }); });
+      var bgV = buffers.map(function (b) { return device.createBindGroup({ layout: pVer.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: b } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: { buffer: err } }] }); });
+
+      async function pasadaMemoria() {
+        pasadas++; dato('d-pasada', pasadas);
+        var semilla = (Math.random() * 4294967295) >>> 0, malos = 0;
+        for (var modo = 0; modo < 5 && !detener && !perdido; modo++) {
+          var nombres = ['aleatorio', '0xAA', '0x55', 'todo unos', 'todo ceros'];
+          for (var b = 0; b < buffers.length; b++) {   // se llenan TODOS antes de verificar: así los primeros esperan un rato
+            device.queue.writeBuffer(uni, 0, new Uint32Array([semilla, b * 0x10000000, modo, ELEM]));
+            var e1 = device.createCommandEncoder(); var c1 = e1.beginComputePass(); c1.setPipeline(pFill); c1.setBindGroup(0, bgF[b]); c1.dispatchWorkgroups(4096); c1.end();
+            device.queue.submit([e1.finish()]);
+          }
+          if (window.__nitInyectar) { device.queue.writeBuffer(buffers[0], 4096, new Uint32Array([0xDEADBEEF])); window.__nitInyectar = false; }
+          await device.queue.onSubmittedWorkDone();
+          for (var v = 0; v < buffers.length; v++) {
+            device.queue.writeBuffer(uni, 0, new Uint32Array([semilla, v * 0x10000000, modo, ELEM]));
+            device.queue.writeBuffer(err, 0, new Uint32Array([0, 0xFFFFFFFF]));
+            var e2 = device.createCommandEncoder(); var c2 = e2.beginComputePass(); c2.setPipeline(pVer); c2.setBindGroup(0, bgV[v]); c2.dispatchWorkgroups(4096); c2.end();
+            e2.copyBufferToBuffer(err, 0, leer, 0, 8); device.queue.submit([e2.finish()]);
+            await leer.mapAsync(GPUMapMode.READ); var r = new Uint32Array(leer.getMappedRange().slice(0)); leer.unmap();
+            if (r[0]) { malos += r[0]; log('Memoria: ' + r[0] + ' valores distintos en el bloque ' + (v + 1) + ' con patrón ' + nombres[modo] + ' (primero en la posición ' + r[1] + ')'); }
+          }
+        }
+        errMem += malos; dato('d-errmem', errMem);
+        log('Pasada de memoria ' + pasadas + ' terminada: ' + (malos ? malos + ' errores' : 'sin errores'));
+      }
+
+      // ---- cálculo verificado ----
+      var mCalc = device.createShaderModule({ code: WGSL_CALC }), mCmp = device.createShaderModule({ code: WGSL_CMP });
+      var pCalc = device.createComputePipeline({ layout: 'auto', compute: { module: mCalc, entryPoint: 'calc' } });
+      var pCmp = device.createComputePipeline({ layout: 'auto', compute: { module: mCmp, entryPoint: 'cmp' } });
+      var TB = HILOS * 4, ST = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC;
+      var cu = device.createBuffer({ size: 8, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      var ai = device.createBuffer({ size: TB, usage: ST }), af = device.createBuffer({ size: TB, usage: ST }), bi = device.createBuffer({ size: TB, usage: ST }), bf = device.createBuffer({ size: TB, usage: ST });
+      var errC = device.createBuffer({ size: 8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      var muestra = device.createBuffer({ size: TB, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      var bgA = device.createBindGroup({ layout: pCalc.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: cu } }, { binding: 1, resource: { buffer: ai } }, { binding: 2, resource: { buffer: af } }] });
+      var bgB = device.createBindGroup({ layout: pCalc.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: cu } }, { binding: 1, resource: { buffer: bi } }, { binding: 2, resource: { buffer: bf } }] });
+      var bgC = device.createBindGroup({ layout: pCmp.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ai } }, { binding: 1, resource: { buffer: bi } }, { binding: 2, resource: { buffer: af } }, { binding: 3, resource: { buffer: bf } }, { binding: 4, resource: { buffer: errC } }] });
+      var iters = 2000;
+
+      async function lote(conMuestra) {
+        var semilla = (Math.random() * 4294967295) >>> 0;
+        device.queue.writeBuffer(cu, 0, new Uint32Array([semilla, iters]));
+        device.queue.writeBuffer(errC, 0, new Uint32Array([0, 0]));
+        var t = performance.now();
+        var e = device.createCommandEncoder();
+        var a = e.beginComputePass(); a.setPipeline(pCalc); a.setBindGroup(0, bgA); a.dispatchWorkgroups(4096); a.end();
+        var b = e.beginComputePass(); b.setPipeline(pCalc); b.setBindGroup(0, bgB); b.dispatchWorkgroups(4096); b.end();
+        var c = e.beginComputePass(); c.setPipeline(pCmp); c.setBindGroup(0, bgC); c.dispatchWorkgroups(4096); c.end();
+        e.copyBufferToBuffer(errC, 0, leer, 0, 8);
+        if (conMuestra) e.copyBufferToBuffer(ai, 0, muestra, 0, TB);
+        device.queue.submit([e.finish()]);
+        await leer.mapAsync(GPUMapMode.READ); var r = new Uint32Array(leer.getMappedRange().slice(0)); leer.unmap();
+        var ms = (performance.now() - t) / 2;   // dos cálculos por lote
+        if (r[0]) { errCalc += r[0]; log('Cálculo: ' + r[0] + ' resultados distintos entre dos ejecuciones iguales'); }
+        if (conMuestra) {
+          await muestra.mapAsync(GPUMapMode.READ); var ent = new Uint32Array(muestra.getMappedRange().slice(0)); muestra.unmap();
+          var malos = 0, cuantos = Math.min(48, Math.max(8, Math.floor(60000000 / (iters * 2 + 1))));
+          for (var k = 0; k < cuantos; k++) { var idx = Math.floor((k + 0.5) * HILOS / cuantos); if (cpuXs(idx, semilla, iters) !== ent[idx]) malos++; }
+          if (malos) { errCalc += malos; log('Cálculo: ' + malos + ' de ' + cuantos + ' muestras no coinciden con el procesador'); }
+        }
+        lotes++; return ms * 2;
+      }
+      for (var cal = 0; cal < 4 && !perdido; cal++) { var ms0 = await lote(false); iters = Math.max(50, Math.min(400000, Math.round(iters * 250 / Math.max(ms0, 1)))); }
+      log('Calibrado: ' + iters + ' iteraciones por hilo (~0,25 s por lote)');
+      errCalc = 0; lotes = 0;
+
+      // ---- bucle principal ----
+      var proxMem = 0;
+      while (performance.now() < fin && !detener && !perdido && !(errMem + errCalc > 50)) {
+        if (performance.now() >= proxMem) { dato('d-estado', 'Probando memoria…'); await pasadaMemoria(); proxMem = performance.now() + 60000; }
+        dato('d-estado', 'Carga sostenida…');
+        var ms = await lote(lotes % 20 === 0);
+        dato('d-lotes', lotes); dato('d-ms', Math.round(ms) + ' ms'); dato('d-errcalc', errCalc);
+        $('prog').style.width = Math.min(100, (performance.now() - t0) / (seg * 10)) + '%';
+        await espera(0);
+      }
+      $('prog').style.width = '100%';
+    } catch (e) {
+      if (perdido) { falla(''); return; }
+      log('Error: ' + e.message);
+      internos.push(e.message);
+    }
+
+    var tiempo = Math.round((performance.now() - t0) / 1000);
+    var internosReales = internos.filter(function (m) { return !/out of memory/i.test(m); });
+    if (errMem + errCalc > 0 || perdido) falla(tiempo + ' s de prueba. ');
+    else if (internosReales.length) noEvaluado('La prueba tuvo un error interno y no se puede fiar de ella: ' + internosReales[0]);
+    else if (detener) veredicto('noeval', 'No evaluado', 'Detenida a los ' + tiempo + ' s, sin errores hasta ese momento. Para un resultado, déjala acabar.', null);
+    else { veredicto('pasa', 'Pasa', 'Sin errores en ' + tiempo + ' s: ' + pasadas + ' pasadas de memoria de vídeo y ' + lotes + ' lotes de cálculo verificados en ' + nombre + '.', ['Una prueba de unos minutos no descarta fallos que solo salen tras horas de juego: si el problema del cliente es ese, repite con 15 minutos y vigila la temperatura.']); dato('d-estado', 'Pasa'); }
+    log('Fin: ' + document.querySelector('#veredicto h3').textContent);
+    try { buffers.forEach(function (b) { b.destroy(); }); device.destroy(); } catch (e) { }
+  }
+
+  async function arrancar(opc) {
+    if (corriendo) return;
+    corriendo = true; detener = false; $('log').textContent = ''; $('veredicto').hidden = true; window.__nitResultado = null;
+    ['d-pasada', 'd-mem', 'd-errmem', 'd-errcalc', 'd-lotes', 'd-ms'].forEach(function (i) { dato(i, '-'); }); $('prog').style.width = '0';
+    $('ini').disabled = true; $('par').disabled = false; $('dur').disabled = true; $('mem').disabled = true;
+    try { await ejecutar(opc); } catch (e) { log('Error inesperado: ' + e.message); veredicto('noeval', 'No evaluado', 'Error inesperado de la prueba: ' + e.message, null); }
+    corriendo = false; $('ini').disabled = false; $('par').disabled = true; $('dur').disabled = false; $('mem').disabled = false;
+    if (!/Pasa|Falla|No eval/.test($('d-estado').textContent)) dato('d-estado', 'Terminada');
+  }
+  $('ini').onclick = function () { arrancar({ duracionSeg: +$('dur').value, memMB: +$('mem').value }); };
+  $('par').onclick = function () { detener = true; $('par').disabled = true; dato('d-estado', 'Deteniendo…'); };
+  window.nitGpu = { arrancar: arrancar };   // gancho para las pruebas automáticas
+  if (window.parent !== window) {   // la «Revisión total» de la app las lanza en un marco oculto y recoge el resultado por mensajes
+    window.addEventListener('message', function (e) {
+      if (e.source !== window.parent || !e.data || typeof e.data.nit !== 'string') return;
+      if (e.data.nit === 'detener') { detener = true; return; }
+      if (e.data.nit !== 'arrancar') return;
+      var reloj = setInterval(function () { window.parent.postMessage({ nit: 'progreso', pct: parseFloat($('prog').style.width) || 0, estado: $('d-estado').textContent }, '*'); }, 1000);
+      arrancar(e.data.opciones).then(function () {
+        clearInterval(reloj);
+        window.parent.postMessage({ nit: 'resultado', resultado: window.__nitResultado || { tipo: 'noeval', titulo: 'No evaluado', texto: 'La prueba no dio resultado.' }, punt: (document.getElementById('d-punt') || {}).textContent || '' }, '*');
+      });
+    });
+    window.parent.postMessage({ nit: 'listo' }, '*');
+  }
+  window.addEventListener('beforeunload', function () { detener = true; });
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"☾  Modo oscuro":"☀  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>

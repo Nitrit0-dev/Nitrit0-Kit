@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de procesador - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#f2a65a; --ok:#35c58f; --err:#ff5c5c; --warn:#ffb454; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; } header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:980px; margin:0 auto; padding:22px 28px 40px; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:820px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .ancho { grid-column:1 / -1; }
+  .panel h2 { margin:0 0 12px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); }
+  button { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px; font:600 14px "Segoe UI",sans-serif; cursor:pointer; margin-top:8px; }
+  button:hover:not(:disabled) { border-color:var(--acc); } button:disabled { opacity:.45; cursor:default; }
+  button.p { background:var(--acc); color:#2a1700; border-color:var(--acc); }
+  label { display:block; font-size:13px; color:var(--mut); margin:12px 0 4px; }
+  select { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px; font:inherit; }
+  .barra { height:14px; background:var(--head); border:1px solid var(--line); border-radius:999px; overflow:hidden; margin-top:14px; }
+  .barra div { height:100%; width:0; background:var(--acc); transition:width .3s; }
+  dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:14px; } dt { color:var(--mut); } dd { margin:0; text-align:right; word-break:break-word; font-variant-numeric:tabular-nums; }
+  .veredicto { border-radius:14px; padding:16px 20px; border:1px solid var(--line); border-left-width:6px; background:var(--card); }
+  .veredicto h3 { margin:0; font-size:20px; } .veredicto p { margin:6px 0 0; color:var(--mut); }
+  .veredicto.pasa { border-left-color:var(--ok); } .veredicto.pasa h3 { color:var(--ok); }
+  .veredicto.falla { border-left-color:var(--err); } .veredicto.falla h3 { color:var(--err); }
+  .veredicto.noeval { border-left-color:var(--warn); } .veredicto.noeval h3 { color:var(--warn); }
+  .ayuda { margin:0; padding-left:20px; color:var(--cuerpo); font-size:14px; } .ayuda li { margin:6px 0; }
+  #log { max-height:170px; overflow:auto; font:12px/1.5 Consolas,monospace; background:var(--pre); color:var(--pretxt); border-radius:10px; padding:10px 12px; white-space:pre-wrap; margin:0; }
+  .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] button.p{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) button.p{color:#fff!important}}</style>
+</head>
+<body>
+<header><h1>Prueba de procesador</h1><p>Carga todos los hilos con cálculos cuyo resultado se verifica, y da una puntuación para comparar antes y después de un cambio. Funciona sin internet y no se guarda nada fuera de esta página.</p></header>
+<main>
+  <section class="panel">
+    <h2>Control</h2>
+    <label for="hilos">Hilos a cargar</label>
+    <select id="hilos"></select>
+    <label for="dur">Duración</label>
+    <select id="dur"><option value="30">30 segundos (rápida)</option><option value="180" selected>3 minutos</option><option value="600">10 minutos (a fondo)</option></select>
+    <button id="ini" class="p">Iniciar prueba</button>
+    <button id="par" disabled>Detener</button>
+    <div class="barra"><div id="prog"></div></div>
+    <p style="font-size:13px;color:var(--mut);margin:10px 0 0">Cierra otros programas pesados. Esta prueba no mide la temperatura: ábrela junto a HWMonitor o Core Temp si sospechas de refrigeración.</p>
+  </section>
+  <section class="panel">
+    <h2>Datos en vivo</h2>
+    <dl>
+      <dt>Estado</dt><dd id="d-estado">Sin empezar</dd>
+      <dt>Procesador</dt><dd id="d-cpu">-</dd>
+      <dt>Hilos en marcha</dt><dd id="d-hilos">-</dd>
+      <dt>Rendimiento</dt><dd id="d-rend">-</dd>
+      <dt>Cálculos verificados</dt><dd id="d-ver">-</dd>
+      <dt>Errores de cálculo</dt><dd id="d-err">-</dd>
+      <dt>Hilos sin respuesta</dt><dd id="d-cuelgue">-</dd>
+      <dt>Puntuación</dt><dd id="d-punt">-</dd>
+    </dl>
+  </section>
+  <section class="ancho" id="veredicto" hidden></section>
+  <section class="panel ancho">
+    <h2>Cómo se hace</h2>
+    <ul class="ayuda">
+      <li><b>Cálculo verificado:</b> cada hilo repite cuentas enteras y de coma flotante cuyo resultado se conoce de antemano. Un resultado distinto es un error de cálculo: suele indicar inestabilidad (overclock, voltaje bajo, refrigeración justa o procesador dañado).</li>
+      <li><b>Puntuación:</b> millones de operaciones por segundo entre todos los hilos. Sirve para comparar el mismo equipo antes y después de un cambio (pasta térmica, BIOS, limpieza); no para compararlo con otros equipos.</li>
+      <li><b>Caída de rendimiento:</b> si al final rinde bastante menos que al principio, el procesador está reduciendo velocidad por calor.</li>
+      <li><b>Regla de oro:</b> si la prueba no se pudo hacer o se detuvo, es «No evaluado», nunca «Falla».</li>
+    </ul>
+  </section>
+  <section class="panel ancho"><h2>Registro</h2><pre id="log"></pre></section>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NUC = navigator.hardwareConcurrency || 4, corriendo = false, detener = false;
+  var SEMILLAS = [11, 2027, 99991, 314159, 271828, 1618033];
+
+  // La misma función corre en el hilo principal (referencia) y en los workers; debe dar siempre el mismo resultado en este procesador.
+  function trabajo(seed, iters) {
+    var x = (Math.imul(seed, 2654435761) + 12345) >>> 0, f = 1 + (seed % 1000) / 1000;
+    for (var k = 0; k < iters; k++) {
+      x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0;
+      x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+      f = Math.sqrt(f + 1.5) + Math.sin(f) * 0.01;
+    }
+    return x + '|' + f.toPrecision(17);
+  }
+  function codigoWorker() {
+    var parar = false, ref;
+    self.onmessage = function (e) {
+      if (e.data.parar) { parar = true; return; }
+      var semillas = e.data.semillas, iters = e.data.iters, i = 0;
+      (function ciclo() {
+        if (parar) return;
+        var s = semillas[i++ % semillas.length], r = trabajo(s, iters);
+        self.postMessage({ seed: s, r: r, iters: iters });
+        setTimeout(ciclo, 0);
+      })();
+    };
+  }
+  var BLOB = URL.createObjectURL(new Blob([trabajo.toString() + '\n(' + codigoWorker.toString() + ')();'], { type: 'text/javascript' }));
+
+  function log(t) { var l = $('log'); l.textContent += new Date().toLocaleTimeString('es-ES') + '  ' + t + '\n'; l.scrollTop = l.scrollHeight; }
+  function dato(id, v) { $(id).textContent = v; }
+  function veredicto(tipo, titulo, texto, consejos) {
+    var v = $('veredicto'); v.hidden = false; v.className = 'veredicto ' + tipo;
+    v.innerHTML = '<h3></h3><p></p>' + (consejos && consejos.length ? '<ul class="ayuda"></ul>' : '');
+    v.querySelector('h3').textContent = titulo; v.querySelector('p').textContent = texto;
+    (consejos || []).forEach(function (c) { var li = document.createElement('li'); li.textContent = c; v.querySelector('ul').appendChild(li); });
+    window.__nitResultado = { tipo: tipo, titulo: titulo, texto: texto };
+  }
+  var espera = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  function nombreCpu() { return NUC + ' hilos lógicos'; }
+
+  function guardarPuntuacion(hilos, punt) {
+    try {
+      var h = JSON.parse(localStorage.getItem('nit_cpu') || '[]'), previa = h.filter(function (x) { return x.hilos === hilos; }).pop();
+      h.push({ f: Date.now(), hilos: hilos, p: punt }); localStorage.setItem('nit_cpu', JSON.stringify(h.slice(-30)));
+      return previa || null;
+    } catch (e) { return null; }
+  }
+
+  async function ejecutar(opc) {
+    var hilos = opc.hilos, seg = opc.duracionSeg, workers = [], errores = 0, verificados = 0, ops = 0, ultimoMensaje = [], colgados = 0;
+    dato('d-cpu', nombreCpu());
+    if (!window.Worker) return noEval('Este equipo no permite hilos en la página.');
+    function noEval(t) { veredicto('noeval', 'No evaluado', t, ['Esto no significa que el procesador esté mal: la prueba no se pudo hacer.']); dato('d-estado', 'No evaluado'); }
+
+    // calibrado: ~80 ms por tarea en un hilo, y resultados de referencia en el hilo principal
+    var iters = 20000, t = performance.now();
+    for (var c = 0; c < 4; c++) { t = performance.now(); trabajo(SEMILLAS[0], iters); var ms = performance.now() - t; iters = Math.max(2000, Math.min(5000000, Math.round(iters * 80 / Math.max(ms, 1)))); }
+    var ref = {}; SEMILLAS.forEach(function (s) { ref[s] = trabajo(s, iters); });
+    if (window.__nitInyectar) { ref[SEMILLAS[1]] = '0|0'; window.__nitInyectar = false; }
+    log('Calibrado: ' + iters + ' iteraciones por tarea; referencias calculadas (' + SEMILLAS.length + ')');
+
+    var t0 = performance.now(), fin = t0 + seg * 1000, resultados = [];
+    for (var w = 0; w < hilos; w++) {
+      var wk = new Worker(BLOB); ultimoMensaje.push(performance.now());
+      wk.onmessage = (function (idx) { return function (e) {
+        ultimoMensaje[idx] = performance.now(); ops += e.data.iters; verificados++;
+        if (e.data.r !== ref[e.data.seed]) { errores++; log('Hilo ' + (idx + 1) + ': resultado distinto en la semilla ' + e.data.seed + ' (' + e.data.r + ' en vez de ' + ref[e.data.seed] + ')'); }
+      }; })(w);
+      wk.onerror = function (e) { errores++; log('Error en un hilo: ' + e.message); };
+      wk.postMessage({ semillas: SEMILLAS, iters: iters }); workers.push(wk);
+    }
+    dato('d-hilos', hilos); dato('d-estado', 'Cargando…'); log('Arrancados ' + hilos + ' hilos');
+
+    var ultOps = 0, ultT = performance.now(), muestras = [];
+    while (performance.now() < fin && !detener && errores < 20) {
+      await espera(500);
+      var ahora = performance.now(), tasa = (ops - ultOps) * 1000 / (ahora - ultT) / 1e6;   // millones de iteraciones por segundo
+      ultOps = ops; ultT = ahora; if (tasa > 0) muestras.push(tasa);
+      colgados = ultimoMensaje.filter(function (u) { return ahora - u > 6000; }).length;
+      dato('d-rend', tasa.toFixed(1).replace('.', ',') + ' M/s'); dato('d-ver', verificados); dato('d-err', errores); dato('d-cuelgue', colgados);
+      $('prog').style.width = Math.min(100, (ahora - t0) / (seg * 10)) + '%';
+      if (colgados === hilos) break;
+    }
+    $('prog').style.width = '100%';
+    workers.forEach(function (wk) { try { wk.postMessage({ parar: true }); } catch (e) { } setTimeout(function () { wk.terminate(); }, 300); });
+
+    var tiempo = Math.round((performance.now() - t0) / 1000);
+    var media = muestras.length ? muestras.reduce(function (a, b) { return a + b; }, 0) / muestras.length : 0;
+    var punt = Math.round(media * 10) / 10; dato('d-punt', punt ? punt.toFixed(1).replace('.', ',') + ' M/s' : '-');
+    var n = Math.max(1, Math.floor(muestras.length / 5)), ini = muestras.slice(0, n), fn = muestras.slice(-n);
+    var caida = ini.length ? 1 - (fn.reduce(function (a, b) { return a + b; }, 0) / fn.length) / (ini.reduce(function (a, b) { return a + b; }, 0) / ini.length) : 0;
+
+    if (errores > 0) {
+      veredicto('falla', 'Falla', tiempo + ' s de prueba. ' + errores + ' resultados de cálculo no coinciden con el esperado.', [
+        'Un procesador sano da siempre el mismo resultado. Si hay overclock o perfil XMP/EXPO agresivo, quítalo y repite.',
+        'Comprueba la temperatura con HWMonitor o Core Temp mientras repites la prueba.',
+        'Si falla a velocidad de fábrica y con buena refrigeración, puede ser el procesador, la placa o la fuente de alimentación.']);
+      dato('d-estado', 'Falla');
+    } else if (colgados > 0 && colgados === hilos && !detener) {
+      veredicto('falla', 'Falla', 'Todos los hilos dejaron de responder durante la prueba.', ['Puede ser un bloqueo del sistema o de la página; repite la prueba. Si se repite, hay un problema de estabilidad.']);
+      dato('d-estado', 'Falla');
+    } else if (detener) {
+      veredicto('noeval', 'No evaluado', 'Detenida a los ' + tiempo + ' s, sin errores hasta ese momento. Para un resultado, déjala acabar.', null); dato('d-estado', 'No evaluado');
+    } else {
+      var previa = guardarPuntuacion(hilos, punt), extra = '';
+      if (previa) { var dif = (punt / previa.p - 1) * 100; extra = ' Comparada con la última vez (' + new Date(previa.f).toLocaleDateString('es-ES') + '): ' + (dif >= 0 ? '+' : '') + dif.toFixed(1).replace('.', ',') + ' %.'; }
+      var consejos = ['Una prueba de unos minutos no descarta fallos que solo salen tras horas de carga: si el problema del cliente es ese, repite con 10 minutos y vigila la temperatura.'];
+      if (caida > 0.15 && seg >= 60) consejos.unshift('El rendimiento cayó un ' + Math.round(caida * 100) + ' % entre el principio y el final: el procesador está bajando velocidad por calor. Revisa ventiladores, polvo y pasta térmica.');
+      veredicto('pasa', caida > 0.15 && seg >= 60 ? 'Pasa, con aviso' : 'Pasa', 'Sin errores en ' + tiempo + ' s: ' + verificados + ' cálculos verificados en ' + hilos + ' hilos. Puntuación ' + punt.toFixed(1).replace('.', ',') + ' M/s.' + extra, consejos);
+      dato('d-estado', 'Pasa');
+    }
+    log('Fin: ' + document.querySelector('#veredicto h3').textContent + ' · puntuación ' + punt);
+  }
+
+  for (var i = 1; i <= 3; i++) {
+    var n = i === 1 ? NUC : i === 2 ? Math.max(1, Math.floor(NUC / 2)) : 1;
+    var o = document.createElement('option'); o.value = n; o.textContent = i === 1 ? 'Todos (' + n + ')' : i === 2 ? 'La mitad (' + n + ')' : 'Uno solo (prueba de un núcleo)'; $('hilos').appendChild(o);
+  }
+  async function arrancar(opc) {
+    if (corriendo) return;
+    corriendo = true; detener = false; $('log').textContent = ''; $('veredicto').hidden = true; window.__nitResultado = null;
+    ['d-hilos', 'd-rend', 'd-ver', 'd-err', 'd-cuelgue', 'd-punt'].forEach(function (i) { dato(i, '-'); }); $('prog').style.width = '0';
+    $('ini').disabled = true; $('par').disabled = false; $('hilos').disabled = true; $('dur').disabled = true;
+    try { await ejecutar(opc); } catch (e) { log('Error inesperado: ' + e.message); veredicto('noeval', 'No evaluado', 'Error inesperado de la prueba: ' + e.message, null); }
+    corriendo = false; $('ini').disabled = false; $('par').disabled = true; $('hilos').disabled = false; $('dur').disabled = false;
+  }
+  $('ini').onclick = function () { arrancar({ hilos: +$('hilos').value, duracionSeg: +$('dur').value }); };
+  $('par').onclick = function () { detener = true; $('par').disabled = true; dato('d-estado', 'Deteniendo…'); };
+  window.nitCpu = { arrancar: arrancar };   // gancho para las pruebas automáticas
+  if (window.parent !== window) {   // la «Revisión total» de la app las lanza en un marco oculto y recoge el resultado por mensajes
+    window.addEventListener('message', function (e) {
+      if (e.source !== window.parent || !e.data || typeof e.data.nit !== 'string') return;
+      if (e.data.nit === 'detener') { detener = true; return; }
+      if (e.data.nit !== 'arrancar') return;
+      var reloj = setInterval(function () { window.parent.postMessage({ nit: 'progreso', pct: parseFloat($('prog').style.width) || 0, estado: $('d-estado').textContent }, '*'); }, 1000);
+      arrancar(e.data.opciones).then(function () {
+        clearInterval(reloj);
+        window.parent.postMessage({ nit: 'resultado', resultado: window.__nitResultado || { tipo: 'noeval', titulo: 'No evaluado', texto: 'La prueba no dio resultado.' }, punt: (document.getElementById('d-punt') || {}).textContent || '' }, '*');
+      });
+    });
+    window.parent.postMessage({ nit: 'listo' }, '*');
+  }
+  window.addEventListener('beforeunload', function () { detener = true; });
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"☾  Modo oscuro":"☀  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>

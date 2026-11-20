@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de audio y micrófono - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#ff8a5b; --ok:#35c58f; --err:#ff5c5c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; } header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:900px; margin:0 auto; padding:22px 28px 40px; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:760px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .panel h2 { margin:0 0 12px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); }
+  button { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px; font:600 14px "Segoe UI",sans-serif; cursor:pointer; margin-top:8px; }
+  button:hover:not(:disabled) { border-color:var(--acc); } button:disabled { opacity:.45; }
+  button.p { background:var(--acc); color:#2a1000; border-color:var(--acc); }
+  .fila { display:flex; gap:8px; } .fila button { margin-top:0; }
+  label { display:block; font-size:13px; color:var(--mut); margin:12px 0 4px; } input[type=range] { width:100%; }
+  select { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px; font:inherit; }
+  .medidor { height:22px; background:var(--head); border:1px solid var(--line); border-radius:999px; overflow:hidden; margin-top:12px; }
+  .medidor div { height:100%; width:0; background:linear-gradient(90deg,var(--ok),#ffd166 70%,var(--err)); transition:width .05s; }
+  .msg { font-size:13px; color:var(--mut); margin-top:10px; min-height:20px; } .msg.err { color:var(--err); }
+  .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] .principal,:root[data-tema="claro"] button.p,:root[data-tema="claro"] #ini{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) .principal,:root:not([data-tema="oscuro"]) button.p,:root:not([data-tema="oscuro"]) #ini{color:#fff!important}}</style>
+
+</head>
+<body>
+<header><h1>Prueba de audio y micrófono</h1><p>Altavoces, auriculares y micrófono. Funciona sin internet y no se guarda nada.</p></header>
+<main>
+  <section class="panel">
+    <h2>Altavoces / auriculares</h2>
+    <div class="fila"><button id="izq">◀ Izquierdo</button><button id="der">Derecho ▶</button></div>
+    <button id="amb" class="p">Ambos canales</button>
+    <button id="bar">Barrido de frecuencias (graves → agudos)</button>
+    <button id="par" disabled>Detener sonido</button>
+    <label for="vol">Volumen del tono (empieza bajo)</label>
+    <input type="range" id="vol" min="0" max="100" value="25">
+    <p class="msg">Debes oír el tono solo por el lado indicado. Si suena al revés, está mal el canal; si crepita o distorsiona, hay un problema en el altavoz o el controlador.</p>
+  </section>
+  <section class="panel">
+    <h2>Micrófono</h2>
+    <label for="mic">Micrófono</label>
+    <select id="mic"><option value="">(se rellena al iniciar)</option></select>
+    <button id="mini" class="p">Activar micrófono</button>
+    <div class="medidor"><div id="nivel"></div></div>
+    <div class="fila" style="margin-top:12px"><button id="grab" disabled>Grabar 5 s y reproducir</button></div>
+    <p class="msg" id="msg">Habla o da un golpecito al micrófono: la barra debe moverse. No se reproduce en directo para evitar el pitido (acople).</p>
+  </section>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ctx = null, fuente = null, ganancia = null;
+  function audio() { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+  function parar() { if (fuente) { try { fuente.stop(); } catch (e) { } fuente = null; } $('par').disabled = true; }
+  function tono(pan, barrido) {
+    parar(); var a = audio(), o = a.createOscillator(), g = a.createGain(), p = a.createStereoPanner ? a.createStereoPanner() : null;
+    g.gain.value = Math.pow($('vol').value / 100, 2) * 0.5; ganancia = g;
+    o.type = 'sine'; o.frequency.value = 440;
+    if (barrido) { o.frequency.setValueAtTime(40, a.currentTime); o.frequency.exponentialRampToValueAtTime(16000, a.currentTime + 12); }
+    o.connect(g); if (p) { p.pan.value = pan; g.connect(p); p.connect(a.destination); } else { g.connect(a.destination); }
+    o.start(); fuente = o; $('par').disabled = false; o.stop(a.currentTime + (barrido ? 12 : 4));
+    o.onended = function () { if (fuente === o) { fuente = null; $('par').disabled = true; } };
+  }
+  $('izq').onclick = function () { tono(-1); }; $('der').onclick = function () { tono(1); };
+  $('amb').onclick = function () { tono(0); }; $('bar').onclick = function () { tono(0, true); };
+  $('par').onclick = parar;
+  $('vol').oninput = function () { if (ganancia) ganancia.gain.value = Math.pow(this.value / 100, 2) * 0.5; };
+
+  var flujo = null, anal = null, buf = null, raf = null, rec = null;
+  function msg(t, e) { var m = $('msg'); m.textContent = t; m.className = 'msg' + (e ? ' err' : ''); }
+  function explicar(e) {
+    if (!e) return 'Error desconocido.';
+    if (e.name === 'NotAllowedError') return 'Permiso denegado. Acepta el aviso del navegador o activa el micrófono en Windows (Privacidad y seguridad → Micrófono).';
+    if (e.name === 'NotFoundError') return 'No se detecta ningún micrófono. Revisa el cable o los dispositivos de entrada de Windows.';
+    if (e.name === 'NotReadableError') return 'El micrófono está en uso por otro programa. Ciérralo e inténtalo de nuevo.';
+    return e.name + ' ' + (e.message || '');
+  }
+  async function listar() {
+    var l = (await navigator.mediaDevices.enumerateDevices()).filter(function (d) { return d.kind === 'audioinput'; });
+    var act = $('mic').value; $('mic').innerHTML = '';
+    l.forEach(function (d, i) { var o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('Micrófono ' + (i + 1)); $('mic').appendChild(o); });
+    if (act) $('mic').value = act;
+  }
+  async function activar() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg('Este navegador no permite usar el micrófono desde un archivo local. Usa Edge o Chrome.', true); return; }
+    if (flujo) flujo.getTracks().forEach(function (t) { t.stop(); }); cancelAnimationFrame(raf);
+    try {
+      flujo = await navigator.mediaDevices.getUserMedia({ audio: $('mic').value ? { deviceId: { exact: $('mic').value } } : true });
+      var a = audio(), s = a.createMediaStreamSource(flujo); anal = a.createAnalyser(); anal.fftSize = 1024; buf = new Uint8Array(anal.fftSize); s.connect(anal);
+      await listar(); $('grab').disabled = false; $('mini').textContent = 'Micrófono activo (pulsa para reiniciar)'; msg('Micrófono activo. Habla y comprueba que la barra se mueve.', false);
+      (function bucle() { anal.getByteTimeDomainData(buf); var m = 0; for (var i = 0; i < buf.length; i++) { var v = Math.abs(buf[i] - 128) / 128; if (v > m) m = v; } $('nivel').style.width = Math.min(100, m * 140) + '%'; raf = requestAnimationFrame(bucle); })();
+    } catch (e) { msg(explicar(e), true); }
+  }
+  $('mini').onclick = activar; $('mic').onchange = function () { if (flujo) activar(); };
+  $('grab').onclick = function () {
+    if (!flujo || !window.MediaRecorder) { msg('La grabación no está disponible en este navegador.', true); return; }
+    var trozos = []; rec = new MediaRecorder(flujo); rec.ondataavailable = function (e) { trozos.push(e.data); };
+    rec.onstop = function () { var u = URL.createObjectURL(new Blob(trozos, { type: rec.mimeType })); var a = new Audio(u); a.play(); msg('Reproduciendo la grabación…', false); a.onended = function () { URL.revokeObjectURL(u); msg('Si oíste tu voz con claridad, el micrófono funciona.', false); }; };
+    rec.start(); msg('Grabando 5 segundos… habla ahora.', false); $('grab').disabled = true; setTimeout(function () { rec.stop(); $('grab').disabled = false; }, 5000);
+  };
+  window.addEventListener('beforeunload', function () { if (flujo) flujo.getTracks().forEach(function (t) { t.stop(); }); });
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"\u263E  Modo oscuro":"\u2600  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+/* Base visual única de Nitrit0 (ver DESIGN.md). Toda pantalla usa estas variables; nada de colores, fuentes o radios sueltos. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+:root {
+  --fondo: #141415; --cabecera: #0F0F10; --superficie: #19191B; --superficie-hover: #202022; --borde: #2C2C2F; --borde-suave: #232326;
+  --texto: #EDEDED; --texto-suave: #A1A1A6; --tenue: #8A8A90;
+  --acento: #22D3EE; --texto-acento: #04131D; --acento-suave: rgba(34, 211, 238, .13); --seleccion: rgba(34, 211, 238, .28);
+  --ok: #4CC38A; --aviso: #E0A23B; --error: #EE6A6E; --borde-fuerte: #6E6E75;
+  --radio: 10px; --radio-chico: 6px;
+  --fuente: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', Consolas, monospace;
+  --barra-titulo: 40px; --ancho-lateral: 224px; --pie: 32px;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  color-scheme: dark;
+}
+:root[data-tema='claro'] {
+  --fondo: #FAFAFA; --cabecera: #FFFFFF; --superficie: #FFFFFF; --superficie-hover: #F4F4F5; --borde: #E1E1E5; --borde-suave: #EDEDF0;
+  --texto: #171717; --texto-suave: #525252; --tenue: #6B6B72;
+  --acento: #0B6B86; --texto-acento: #FFFFFF; --acento-suave: rgba(11, 107, 134, .1); --seleccion: rgba(11, 107, 134, .22);
+  --ok: #18744A; --aviso: #8F5A06; --error: #C62F35; --borde-fuerte: #8A8A92;
+  color-scheme: light;
+}

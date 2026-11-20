@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Iconos Nitrit0</title>
+<style>
+body{margin:0;padding:24px;font-family:'Segoe UI',sans-serif;background:#1b1b1d;color:#ddd;width:1100px}
+h1{font-size:18px;margin:0 0 16px}
+.fila{display:flex;align-items:center;gap:28px;margin:0 0 18px;padding:16px;border-radius:10px;background:#141415}
+.fila.claro{background:#f3f3f3}
+.et{width:150px;font-size:15px;font-weight:600}
+.fila.claro .et{color:#222}
+.t{display:flex;align-items:flex-end;gap:22px}
+.t span{font-size:11px;color:#888;display:block;text-align:center;margin-top:4px}
+</style>
+<svg width="0" height="0" style="position:absolute">
+ <defs>
+  <symbol id="A" viewBox="0 0 256 256">
+   <rect width="256" height="256" rx="56" fill="#22D3EE"/>
+   <path d="M68 196V60h34l52 80V60h34v136h-34l-52-80v80z" fill="#0F0F10"/>
+  </symbol>
+  <symbol id="B" viewBox="0 0 256 256">
+   <rect width="256" height="256" rx="56" fill="#0F0F10"/>
+   <path d="M128 36l78 28v60c0 48-32 80-78 96-46-16-78-48-78-96V64z" fill="none" stroke="#22D3EE" stroke-width="16" stroke-linejoin="round"/>
+   <path d="M92 128l28 28 48-56" fill="none" stroke="#22D3EE" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="C" viewBox="0 0 256 256">
+   <rect width="256" height="256" rx="56" fill="#0F0F10"/>
+   <path d="M28 138h50l22-62 34 112 24-50h70" fill="none" stroke="#22D3EE" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+ </defs>
+</svg>
+<h1>Tres opciones de icono para Nitrit0 (cian #22D3EE de la app)</h1>
+<div id="x"></div>
+<script>
+const o=[['A','A · N sobre cian'],['B','B · Escudo con tilde'],['C','C · Línea de pulso']];
+let h='';
+for(const claro of [false,true]) for(const [k,n] of o){
+ h+=`<div class="fila${claro?' claro':''}"><div class="et">${n}</div><div class="t">`+[256,64,32,16].map(s=>`<div><svg width="${s}" height="${s}"><use href="#${k}"/></svg><span>${s} px</span></div>`).join('')+`</div></div>`;
+}
+document.getElementById('x').innerHTML=h;
+</script></html>

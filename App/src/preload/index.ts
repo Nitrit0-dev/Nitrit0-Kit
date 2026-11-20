@@ -1,0 +1,63 @@
+import { contextBridge, ipcRenderer } from 'electron'
+
+const suscribir = <T>(canal: string, cb: (v: T) => void) => {
+  const f = (_e: unknown, v: T) => cb(v)
+  ipcRenderer.on(canal, f)
+  return () => { ipcRenderer.removeListener(canal, f) }
+}
+
+const api = {
+  catalogo: () => ipcRenderer.invoke('catalogo'),
+  resumen: () => ipcRenderer.invoke('resumen'),
+  discos: () => ipcRenderer.invoke('discos'),
+  vivo: () => ipcRenderer.invoke('vivo'),
+  perfil: (id: string) => ipcRenderer.invoke('perfil', id),
+  perfilPreguntado: () => ipcRenderer.invoke('perfilPreguntado'),
+  arranque: (on: boolean) => ipcRenderer.invoke('arranque', on),
+  memoria: () => ipcRenderer.invoke('memoria'),
+  memoriaAuto: (on: boolean) => ipcRenderer.invoke('memoriaAuto', on),
+  instalar: () => ipcRenderer.invoke('instalar'),
+  quitarInstalacion: () => ipcRenderer.invoke('quitarInstalacion'),
+  ajustes: (op: { accion: 'leer' } | { accion: 'aplicar'; id: string; opcion: string }) => ipcRenderer.invoke('ajustes', op),
+  estado: () => ipcRenderer.invoke('estado'),
+  zoom: (f: number) => ipcRenderer.invoke('zoom', f),
+  elevar: () => ipcRenderer.invoke('elevar') as Promise<{ ok: boolean; mensaje: string }>,
+  tema: (t: 'oscuro' | 'claro' | 'sistema') => ipcRenderer.invoke('tema', t),
+  favoritos: (lista: string[]) => ipcRenderer.invoke('favoritos', lista),
+  lanzar: (id: string) => ipcRenderer.invoke('lanzar', id),
+  pruebaEntrar: () => ipcRenderer.invoke('pruebaEntrar'),
+  pruebaSalir: () => ipcRenderer.invoke('pruebaSalir'),
+  mediaEstado: (tipo: 'camera' | 'microphone') => ipcRenderer.invoke('mediaEstado', tipo) as Promise<string>,
+  ajustesPrivacidad: (tipo: 'camera' | 'microphone') => ipcRenderer.invoke('ajustesPrivacidad', tipo) as Promise<void>,
+  pruebaUrl: (id: string) => ipcRenderer.invoke('pruebaUrl', id) as Promise<{ ok: boolean; titulo?: string; url?: string; mensaje: string }>,
+  diagnostico: (opc: { modo: 'Rapido' | 'Completo'; ficha: Record<string, string> }) => ipcRenderer.invoke('diagnostico', opc),
+  informeEntrega: (d: { cliente: string; notas: string }) => ipcRenderer.invoke('informeEntrega', d),
+  equilibrio: (perfil: string) => ipcRenderer.invoke('equilibrio', perfil),
+  revisionAuto: (opc: { actualizar: boolean; antivirus: boolean; cliente: string; enfoque: string }) => ipcRenderer.invoke('revisionAuto', opc),
+  guardarUltima: (u: unknown) => ipcRenderer.invoke('guardarUltima', u),
+  autoConfirmar: (ids: string[]) => ipcRenderer.invoke('autoConfirmar', ids),
+  combo: (opc: { pasos: string[]; cliente: string }) => ipcRenderer.invoke('combo', opc),
+  modo: (m: 'sencillo' | 'tecnico') => ipcRenderer.invoke('modo', m),
+  reiniciar: () => ipcRenderer.invoke('reiniciar'),
+  cancelarReinicio: () => ipcRenderer.invoke('cancelarReinicio'),
+  autoSaltar: () => ipcRenderer.invoke('autoSaltar'),
+  ejecucionActual: () => ipcRenderer.invoke('ejecucionActual'),
+  cancelar: () => ipcRenderer.invoke('cancelar'),
+  cola: () => ipcRenderer.invoke('cola'),
+  colaQuitar: (id: string) => ipcRenderer.invoke('colaQuitar', id),
+  colaVaciar: () => ipcRenderer.invoke('colaVaciar'),
+  alCola: (cb: (v: { id: string; titulo: string }[]) => void) => suscribir('ejec:cola', cb),
+  abrirInforme: (ruta: string) => ipcRenderer.invoke('abrirInforme', ruta),
+  abrirRegistro: (ruta: string) => ipcRenderer.invoke('abrirRegistro', ruta),
+  alIniciar: (cb: (v: { id: string; titulo: string; limite: number; clase: 'script' | 'diagnostico' | 'equilibrio' | 'auto' }) => void) => suscribir('ejec:inicio', cb),
+  alLlegarLineas: (cb: (v: string[]) => void) => suscribir('ejec:lineas', cb),
+  alProgreso: (cb: (v: { actual: number; total: number; texto: string }) => void) => suscribir('ejec:progreso', cb),
+  alInforme: (cb: (v: { ruta: string; html: string }) => void) => suscribir('ejec:informe', cb),
+  alDx: (cb: (v: Record<string, unknown>) => void) => suscribir('ejec:dx', cb),
+  alEq: (cb: (v: Record<string, unknown>) => void) => suscribir('ejec:eq', cb),
+  alAuto: (cb: (v: Record<string, unknown>) => void) => suscribir('ejec:auto', cb),
+  alAvisar: (cb: (v: string) => void) => suscribir('ejec:aviso', cb),
+  alTerminar: (cb: (v: { id: string; titulo: string; codigo: number | null; motivo: string; seg: number; correcto: boolean; cancelado?: boolean; registro: string | null }) => void) => suscribir('ejec:fin', cb)
+}
+contextBridge.exposeInMainWorld('kit', api)
+export type KitApi = typeof api

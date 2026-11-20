@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propuesta visual · Nitrit0 Kit</title>
+<style>
+/* Mismos tokens que App/src/renderer/src/diseno/tokens.css: la propuesta no inventa colores, fuentes ni radios. */
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('fuentes/ibm-plex-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('fuentes/ibm-plex-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('fuentes/ibm-plex-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-weight: 400; src: url('fuentes/ibm-plex-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url('fuentes/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); }
+:root {
+  --fondo: #141415; --cabecera: #0F0F10; --superficie: #19191B; --superficie-hover: #202022; --borde: #2C2C2F; --borde-suave: #232326;
+  --texto: #EDEDED; --texto-suave: #A1A1A6; --tenue: #8A8A90;
+  --acento: #22D3EE; --texto-acento: #04131D; --acento-suave: rgba(34,211,238,.13); --seleccion: rgba(34,211,238,.28);
+  --ok: #4CC38A; --aviso: #E0A23B; --error: #EE6A6E; --borde-fuerte: #6E6E75;
+  --radio: 10px; --radio-chico: 6px;
+  --fuente: 'IBM Plex Sans','Segoe UI',system-ui,sans-serif; --mono: 'IBM Plex Mono',Consolas,monospace;
+  color-scheme: dark;
+}
+:root[data-tema='claro'] {
+  --fondo: #FAFAFA; --cabecera: #FFFFFF; --superficie: #FFFFFF; --superficie-hover: #F4F4F5; --borde: #E1E1E5; --borde-suave: #EDEDF0;
+  --texto: #171717; --texto-suave: #525252; --tenue: #6B6B72;
+  --acento: #0B6B86; --texto-acento: #FFFFFF; --acento-suave: rgba(11,107,134,.1); --seleccion: rgba(11,107,134,.22);
+  --ok: #18744A; --aviso: #8F5A06; --error: #C62F35; --borde-fuerte: #8A8A92;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--fondo); color: var(--texto); font: 14px/1.5 var(--fuente); -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; overflow: hidden; }
+.n { font-variant-numeric: tabular-nums; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: var(--radio-chico); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Cinta de la propuesta (fuera de la app) */
+.cinta { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 16px; background: var(--cabecera); border-bottom: 1px solid var(--borde); }
+.cinta b { font-weight: 600; }
+.cinta .nota { color: var(--tenue); font-size: 13px; }
+.cinta .pestanas { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.chip { padding: 5px 11px; border-radius: var(--radio-chico); border: 1px solid var(--borde); background: none; color: var(--texto-suave); cursor: pointer; font-size: 13px; }
+.chip:hover { background: var(--superficie-hover); color: var(--texto); }
+.chip[aria-pressed='true'] { background: var(--acento-suave); color: var(--acento); border-color: var(--acento); }
+.chip .num { color: var(--tenue); margin-left: 6px; font-size: 12px; }
+.chip[aria-pressed='true'] .num { color: var(--acento); }
+
+/* Estructura de la app (igual que la real: barra de título, lateral de 224 px, pie) */
+.marco { display: grid; grid-template-columns: 224px 1fr; grid-template-rows: 40px 1fr 32px; flex: 1; min-height: 0; }
+.barra-titulo { grid-column: 1 / -1; background: var(--cabecera); border-bottom: 1px solid var(--borde); display: flex; align-items: center; gap: 10px; padding: 0 14px; font-size: 13px; }
+.barra-titulo b { font-weight: 600; }
+.logo { width: 22px; height: 22px; border-radius: 6px; background: var(--acento); color: var(--texto-acento); display: grid; place-items: center; font: 600 11px var(--fuente); }
+.lateral { background: var(--cabecera); border-right: 1px solid var(--borde); padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+.nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--radio-chico); background: none; color: var(--texto-suave); cursor: pointer; text-align: left; }
+.nav:hover { background: var(--superficie-hover); color: var(--texto); }
+.nav[aria-current='page'] { background: var(--acento-suave); color: var(--acento); font-weight: 500; }
+.nav .num { margin-left: auto; font-size: 12px; color: var(--tenue); }
+.lateral hr { border: 0; border-top: 1px solid var(--borde-suave); margin: 8px 4px; width: calc(100% - 8px); }
+.pie-lateral { margin-top: auto; display: flex; flex-direction: column; gap: 2px; position: relative; }
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.ico.chico { width: 15px; height: 15px; }
+.pie { grid-column: 1 / -1; background: var(--cabecera); border-top: 1px solid var(--borde); display: flex; justify-content: space-between; align-items: center; padding: 0 14px; font-size: 12px; color: var(--texto-suave); }
+.pie .num { color: var(--tenue); }
+main { overflow-y: auto; position: relative; }
+.pantalla { display: none; padding: 26px 40px 90px; max-width: 980px; }
+.pantalla.activa { display: block; }
+
+/* Desplegable (nuevo): sirve para el tema, para los ajustes con varias opciones y para los menús «Acciones» y «Ver» */
+.desplegable { position: relative; display: inline-block; }
+.desplegable > button { display: inline-flex; align-items: center; gap: 8px; min-width: 150px; justify-content: space-between; padding: 7px 10px 7px 12px; border: 1px solid var(--borde); border-radius: var(--radio-chico); background: var(--superficie); cursor: pointer; }
+.desplegable > button:hover { background: var(--superficie-hover); border-color: var(--tenue); }
+.desplegable > button[aria-expanded='true'] { border-color: var(--acento); }
+.desplegable .lista { position: absolute; z-index: 8; min-width: 100%; margin-top: 4px; padding: 4px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); display: none; right: 0; }
+.desplegable.arriba .lista { bottom: 100%; margin: 0 0 4px; top: auto; }
+.desplegable.abierto .lista { display: block; }
+.lista [role='option'], .lista [role='menuitem'] { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radio-chico); cursor: pointer; white-space: nowrap; color: var(--texto-suave); }
+.lista [role='option']:hover, .lista [role='menuitem']:hover { background: var(--superficie-hover); color: var(--texto); }
+.lista [aria-selected='true'] { color: var(--acento); background: var(--acento-suave); }
+.lista .marca { margin-left: auto; width: 15px; height: 15px; opacity: 0; }
+.lista [aria-selected='true'] .marca { opacity: 1; }
+.pie-lateral .desplegable > button { width: 100%; border: 0; background: none; padding: 8px 10px; min-width: 0; color: var(--texto-suave); }
+.pie-lateral .desplegable > button:hover { background: var(--superficie-hover); color: var(--texto); }
+.pie-lateral .desplegable .lista { right: auto; left: 0; min-width: 190px; }
+
+/* Cabecera de página */
+.cab { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.cab h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 600; }
+.cab p { margin: 4px 0 0; color: var(--texto-suave); }
+.cab .acciones { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.boton { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--borde); border-radius: var(--radio-chico); background: var(--superficie); cursor: pointer; }
+.boton:hover:not(:disabled) { background: var(--superficie-hover); border-color: var(--tenue); }
+.boton.principal-b { background: var(--acento); border-color: var(--acento); color: var(--texto-acento); font-weight: 500; }
+.boton.principal-b:hover:not(:disabled) { filter: brightness(1.08); border-color: var(--acento); background: var(--acento); }
+.boton:disabled { opacity: .5; cursor: default; }
+.boton.suave { background: none; color: var(--texto-suave); }
+
+/* Resumen del grupo */
+.resumen { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; color: var(--texto-suave); font-size: 13px; }
+.barrita { flex: 0 0 160px; height: 6px; border-radius: 3px; background: var(--borde); overflow: hidden; }
+.barrita i { display: block; height: 100%; background: var(--ok); transition: width .16s; }
+.filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* Fila de ajuste (lo central de la propuesta) */
+.ajustes { display: flex; flex-direction: column; gap: 8px; }
+.ajuste { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; }
+.ajuste h3 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.ajuste p { margin: 2px 0 0; color: var(--texto-suave); font-size: 13px; }
+.ajuste .control { display: flex; align-items: center; gap: 12px; }
+.ajuste .estado-linea { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: 12.5px; color: var(--tenue); }
+/* Etiqueta de estado: una sola, con icono y texto (no solo color), rectangular */
+.estado { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--radio-chico); border: 1px solid var(--borde); font-size: 12.5px; font-weight: 500; color: var(--texto-suave); }
+.estado .ico { width: 14px; height: 14px; }
+.estado.rec { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.estado.pred { color: var(--texto-suave); }
+.estado.pers { color: var(--aviso); border-color: color-mix(in srgb, var(--aviso) 50%, transparent); }
+.estado.gusto { color: var(--acento); border-color: color-mix(in srgb, var(--acento) 45%, transparent); }
+.enlace { background: none; border: 0; color: var(--acento); cursor: pointer; padding: 2px 4px; border-radius: var(--radio-chico); }
+.enlace:hover { text-decoration: underline; }
+.enlace .ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+/* Interruptor rectangular (sin píldoras) con el estado escrito */
+.interruptor { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer; padding: 4px; border-radius: var(--radio-chico); }
+.interruptor .pista { width: 40px; height: 22px; border: 1px solid var(--borde-fuerte); border-radius: var(--radio-chico); background: var(--fondo); position: relative; transition: background .16s, border-color .16s; }
+.interruptor .pista::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 4px; background: var(--texto-suave); transition: transform .16s, background .16s; }
+.interruptor[aria-checked='true'] .pista { background: var(--acento); border-color: var(--acento); }
+.interruptor[aria-checked='true'] .pista::after { transform: translateX(18px); background: var(--texto-acento); }
+.interruptor .texto { min-width: 78px; text-align: left; color: var(--texto-suave); font-size: 13px; }
+.interruptor[aria-checked='true'] .texto { color: var(--texto); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* Detalles técnicos plegables */
+.detalles { grid-column: 1 / -1; margin-top: 6px; }
+.detalles summary { cursor: pointer; color: var(--texto-suave); font-size: 12.5px; width: max-content; padding: 2px 4px; border-radius: var(--radio-chico); }
+.detalles summary:hover { color: var(--texto); }
+.detalles dl { margin: 8px 0 2px; display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-family: var(--mono); font-size: 12px; background: var(--fondo); border: 1px solid var(--borde-suave); border-radius: var(--radio-chico); padding: 10px 12px; }
+.detalles dt { color: var(--tenue); }
+.detalles dd { margin: 0; color: var(--texto-suave); word-break: break-all; }
+.nota { display: flex; gap: 8px; align-items: flex-start; grid-column: 1 / -1; margin-top: 6px; padding: 8px 10px; border-radius: var(--radio-chico); border: 1px solid color-mix(in srgb, var(--aviso) 45%, transparent); color: var(--aviso); font-size: 13px; }
+.nota .ico { margin-top: 2px; }
+.nota.info { border-color: var(--borde); color: var(--texto-suave); }
+.simulado { color: var(--tenue); font-size: 12.5px; margin: 14px 2px 0; }
+
+/* Lista de grupos */
+.grupos { display: flex; flex-direction: column; gap: 8px; }
+.grupo { display: grid; grid-template-columns: 1fr auto 18px; gap: 16px; align-items: center; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; cursor: pointer; }
+.grupo:hover { background: var(--superficie-hover); border-color: var(--tenue); }
+.grupo h3 { margin: 0; font-size: 15px; font-weight: 500; }
+.grupo p { margin: 2px 0 0; color: var(--texto-suave); font-size: 13px; }
+.grupo .cuentas { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 12.5px; color: var(--texto-suave); }
+.grupo .cuentas .barrita { flex-basis: auto; width: 150px; }
+.grupo .ico { color: var(--tenue); }
+
+/* Quitar programas */
+.sel { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.programas { display: flex; flex-direction: column; gap: 6px; }
+.programa { display: grid; grid-template-columns: 22px 38px 1fr auto; gap: 14px; align-items: center; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px 14px; }
+.programa[data-marcado='true'] { border-color: var(--acento); background: var(--acento-suave); }
+.programa .glifo { width: 38px; height: 38px; border-radius: var(--radio-chico); background: var(--fondo); border: 1px solid var(--borde-suave); display: grid; place-items: center; color: var(--texto-suave); font-weight: 600; font-size: 14px; }
+.programa h3 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.programa p { margin: 1px 0 0; color: var(--texto-suave); font-size: 13px; }
+.programa .estados { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.casilla { width: 18px; height: 18px; accent-color: var(--acento); }
+.barra-accion { position: sticky; bottom: 0; margin: 18px -40px -90px; padding: 12px 40px; background: var(--cabecera); border-top: 1px solid var(--borde); display: flex; align-items: center; gap: 14px; }
+.barra-accion .texto { color: var(--texto-suave); font-size: 13px; }
+.barra-accion .boton { margin-left: auto; }
+
+/* Revisión del plan (como el modo revisión de Winhance, con nuestras palabras) */
+.revision { position: sticky; top: 0; z-index: 4; margin: -26px -40px 18px; padding: 12px 40px; background: var(--cabecera); border-bottom: 1px solid var(--acento); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.revision .que { display: flex; flex-direction: column; }
+.revision .que b { font-weight: 600; }
+.revision .que span { color: var(--texto-suave); font-size: 13px; }
+.revision .ac { margin-left: auto; display: flex; gap: 8px; }
+.cambio { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; }
+.cambio[data-decision='si'] { border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.cambio[data-decision='no'] { opacity: .65; }
+.cambio h3 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.cambio .dif { font-size: 13px; color: var(--texto-suave); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+.cambio .dif b { color: var(--texto); font-weight: 500; font-family: var(--mono); font-size: 12.5px; }
+.segmento { display: inline-flex; border: 1px solid var(--borde); border-radius: var(--radio-chico); overflow: hidden; }
+.segmento button { background: none; border: 0; padding: 6px 14px; cursor: pointer; color: var(--texto-suave); }
+.segmento button + button { border-left: 1px solid var(--borde); }
+.segmento button:hover { background: var(--superficie-hover); color: var(--texto); }
+.segmento button[aria-pressed='true'].si { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.segmento.acento button[aria-pressed='true'] { background: var(--acento-suave); color: var(--acento); }
+.segmento button[aria-pressed='true'].no { background: var(--superficie-hover); color: var(--texto); }
+.lista-cambios { display: flex; flex-direction: column; gap: 8px; }
+/* Búsqueda global en la barra de título */
+.buscar-global { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; width: 280px; max-width: 40vw; padding: 4px 10px; border: 1px solid var(--borde); border-radius: var(--radio-chico); background: var(--superficie); color: var(--tenue); cursor: pointer; font-size: 13px; }
+.buscar-global:hover { border-color: var(--tenue); color: var(--texto-suave); }
+.buscar-global kbd { margin-left: auto; font-size: 11px; border: 1px solid var(--borde); border-radius: 4px; padding: 0 5px; color: var(--tenue); }
+/* Estado del equipo en el lateral */
+.punto { width: 8px; height: 8px; border-radius: 2px; background: var(--ok); display: inline-block; }
+.panel-equipo { left: 0; right: auto; width: 290px; padding: 14px; }
+.panel-equipo .pe-cab { display: flex; flex-direction: column; margin-bottom: 12px; }
+.panel-equipo .pe-cab span { color: var(--texto-suave); font-size: 12.5px; }
+.medida { margin-bottom: 12px; font-size: 13px; }
+.medida > div:first-child { display: flex; justify-content: space-between; margin-bottom: 4px; color: var(--texto-suave); }
+.medida .barrita { flex: none; width: 100%; }
+.medida small { display: block; margin-top: 3px; color: var(--tenue); font-size: 11.5px; }
+.panel-equipo .enlace { margin-left: -4px; }
+/* Portada con tareas */
+.pantalla.ancha { max-width: 1060px; }
+.tarjetas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.tarjeta { position: relative; display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; gap: 4px 12px; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 40px 14px 14px; color: inherit; text-decoration: none; }
+.tarjeta:hover { background: var(--superficie-hover); border-color: var(--tenue); }
+.tarjeta .ficha { grid-row: 1 / 3; width: 38px; height: 38px; border-radius: var(--radio-chico); background: var(--acento-suave); color: var(--acento); display: grid; place-items: center; align-self: start; }
+.tarjeta h3 { margin: 0; font-size: 14.5px; font-weight: 500; align-self: end; }
+.tarjeta p { margin: 0; color: var(--texto-suave); font-size: 13px; }
+.tarjeta .flecha { position: absolute; right: 14px; top: 50%; margin-top: -9px; color: var(--tenue); }
+.tarjetas.grandes .tarjeta { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; align-content: start; padding: 18px 18px 22px; min-height: 150px; }
+.tarjetas.grandes .ficha { width: 42px; height: 42px; grid-row: auto; margin-bottom: 10px; }
+.tarjetas.grandes h3 { font-size: 17px; align-self: start; }
+.tarjetas.grandes .flecha { top: auto; bottom: 16px; margin: 0; }
+.sec-tit { display: flex; align-items: baseline; justify-content: space-between; margin: 22px 0 8px; }
+.sec-tit h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.perfiles { display: flex; flex-direction: column; gap: 6px; }
+.perfil { display: grid; grid-template-columns: 38px 1fr auto auto; gap: 14px; align-items: center; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px 14px; }
+.perfil .glifo { width: 38px; height: 38px; border-radius: var(--radio-chico); background: var(--fondo); border: 1px solid var(--borde-suave); display: grid; place-items: center; color: var(--texto-suave); font-weight: 600; }
+.perfil h3 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.perfil p { margin: 1px 0 0; color: var(--texto-suave); font-size: 13px; }
+.perfil .meta { color: var(--tenue); font-size: 12.5px; }
+/* Ajustes de la app */
+.config { display: grid; grid-template-columns: 240px 1fr; gap: 20px; align-items: start; }
+.config-lista { display: flex; flex-direction: column; gap: 2px; }
+.buscador { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 8px; border: 1px solid var(--borde); border-radius: var(--radio-chico); background: var(--superficie); color: var(--tenue); }
+.buscador input { background: none; border: 0; outline: 0; flex: 1; min-width: 0; }
+.buscador:focus-within { border-color: var(--acento); }
+.config-filas { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); }
+.fila-config { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 14px 16px; }
+.fila-config + .fila-config { border-top: 1px solid var(--borde-suave); }
+.fila-config h3 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.fila-config p { margin: 2px 0 0; color: var(--texto-suave); font-size: 13px; max-width: 54ch; }
+.fila-config p b { font-weight: 500; color: var(--texto); }
+.ruta { color: var(--texto-suave); font-size: 12.5px; background: var(--fondo); border: 1px solid var(--borde-suave); border-radius: var(--radio-chico); padding: 4px 8px; }
+@media (max-width: 860px) { .tarjetas { grid-template-columns: 1fr; } .config { grid-template-columns: 1fr; } .perfil { grid-template-columns: 38px 1fr; } .perfil .meta, .perfil .boton { grid-column: 2; justify-self: start; } .buscar-global { display: none; } }
+@media (max-width: 860px) { .marco { grid-template-columns: 1fr; } .lateral { display: none; } .pantalla { padding: 20px 16px 90px; } .revision { margin: -20px -16px 14px; padding: 12px 16px; } .barra-accion { margin: 18px -16px -90px; padding: 12px 16px; } .ajuste { grid-template-columns: 1fr; } .grupo { grid-template-columns: 1fr 18px; } .grupo .cuentas { display: none; } .programa { grid-template-columns: 22px 1fr; } .programa .glifo { display: none; } .programa .estados { grid-column: 2; justify-content: flex-start; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-pulso" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+  <symbol id="i-llave" viewBox="0 0 24 24"><path d="M14 6l4 4-9 9H5v-4z"/><path d="M13 7l4 4"/></symbol>
+  <symbol id="i-ayuda" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></symbol>
+  <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></symbol>
+  <symbol id="i-pantalla" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-bajar" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-der" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-circulo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></symbol>
+  <symbol id="i-cambio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-gusto" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.5-7 10-7 10z"/></symbol>
+  <symbol id="i-bien" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-rayo" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></symbol>
+  <symbol id="i-ojo" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></symbol>
+  <symbol id="i-escudo2" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></symbol>
+  <symbol id="i-lupa" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-lento" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 9a14 14 0 0118 0M6 12.5a9.5 9.5 0 0112 0M9 16a5 5 0 016 0M12 19.5h.01"/></symbol>
+  <symbol id="i-disco" viewBox="0 0 24 24"><path d="M4 14l2.5-8h11L20 14v4a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M4 14h16M16 16.5h.01"/></symbol>
+  <symbol id="i-lista" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="i-caja" viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/></symbol>
+  <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
+  <symbol id="i-candado" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></symbol>
+  <symbol id="i-historial" viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8 8 8 0 00-6 2.7L4 9"/><path d="M4 4v5h5M12 8v4l3 2"/></symbol>
+</svg>
+
+<div class="cinta">
+  <b>Propuesta visual</b>
+  <span class="nota">Maqueta con datos de ejemplo: nada de lo que ves se aplica a ningún equipo. Inspirada en cómo Winhance presenta los ajustes, con las reglas de nuestro <code>DESIGN.md</code>.</span>
+  <div class="pestanas" role="group" aria-label="Pantallas de la propuesta">
+    <button class="chip" data-ir="p-ajustes" aria-pressed="true">1 · Ajustes de un grupo</button>
+    <button class="chip" data-ir="p-grupos" aria-pressed="false">2 · Lista de grupos</button>
+    <button class="chip" data-ir="p-programas" aria-pressed="false">3 · Quitar programas</button>
+    <button class="chip" data-ir="p-revision" aria-pressed="false">4 · Revisar antes de aplicar</button>
+    <button class="chip" data-ir="p-inicio" aria-pressed="false">5 · Portada con tareas</button>
+    <button class="chip" data-ir="p-config" aria-pressed="false">6 · Ajustes de la app</button>
+  </div>
+</div>
+
+<div class="marco">
+  <div class="barra-titulo"><span class="logo" aria-hidden="true">N</span><b>Nitrit0 Kit</b>
+    <button class="buscar-global" type="button" aria-label="Buscar en el kit (Ctrl K)"><svg class="ico chico"><use href="#i-lupa"/></svg>Buscar herramientas…<kbd class="num">Ctrl K</kbd></button>
+  </div>
+
+  <nav class="lateral" aria-label="Principal">
+    <button class="nav"><svg class="ico"><use href="#i-escudo"/></svg>Arreglar mi equipo</button>
+    <hr>
+    <button class="nav"><svg class="ico"><use href="#i-panel"/></svg>Estado del equipo</button>
+    <button class="nav"><svg class="ico"><use href="#i-pulso"/></svg>Diagnóstico</button>
+    <button class="nav" aria-current="page"><svg class="ico"><use href="#i-llave"/></svg>Herramientas<span class="num">113</span></button>
+    <div class="pie-lateral">
+      <!-- Estado del equipo siempre a mano (idea del panel «Local · Motor listo» de VoiceStudio): lectura en vivo, no decorativa -->
+      <div class="desplegable arriba" id="d-equipo">
+        <button type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Estado de este equipo">
+          <span style="display:inline-flex;align-items:center;gap:10px"><span class="punto" aria-hidden="true"></span>Este equipo</span><span class="num" style="color:var(--tenue);font-size:12px">34 %</span>
+        </button>
+        <div class="lista panel-equipo" role="dialog" aria-label="Estado de este equipo">
+          <div class="pe-cab"><b>Este equipo</b><span>Listo para trabajar · con permisos de administrador</span></div>
+          <div class="medida"><div><span>Procesador</span><span class="num">1 %</span></div><div class="barrita"><i style="width:1%"></i></div><small class="num">AMD Ryzen 7 3800XT · 8 núcleos / 16 hilos</small></div>
+          <div class="medida"><div><span>Memoria</span><span class="num">10,9 / 31,9 GB</span></div><div class="barrita"><i style="width:34%;background:var(--acento)"></i></div></div>
+          <div class="medida"><div><span>Gráfica</span><span class="num">1 %</span></div><div class="barrita"><i style="width:1%"></i></div><small class="num">NVIDIA GeForce GTX 1080 · 0,8 / 8,0 GB</small></div>
+          <div class="medida"><div><span>Disco C:</span><span class="num">412 GB libres</span></div><div class="barrita"><i style="width:62%;background:var(--acento)"></i></div></div>
+          <button class="enlace" type="button">Ver el estado completo</button>
+        </div>
+      </div>
+      <button class="nav"><svg class="ico"><use href="#i-ayuda"/></svg>Ayuda<span class="num">F1</span></button>
+      <!-- El desplegable de tema, como el de Winhance, pero con «Igual que Windows» -->
+      <div class="desplegable arriba" id="d-tema">
+        <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Tema de la aplicación">
+          <span style="display:inline-flex;align-items:center;gap:10px"><svg class="ico"><use href="#i-luna" id="tema-ico"/></svg><span id="tema-txt">Tema: oscuro</span></span>
+          <svg class="ico chico"><use href="#i-bajar"/></svg>
+        </button>
+        <div class="lista" role="listbox" aria-label="Tema">
+          <div role="option" tabindex="0" data-valor="oscuro" aria-selected="true"><svg class="ico chico"><use href="#i-luna"/></svg>Oscuro<svg class="ico chico marca"><use href="#i-bien"/></svg></div>
+          <div role="option" tabindex="0" data-valor="claro" aria-selected="false"><svg class="ico chico"><use href="#i-sol"/></svg>Claro<svg class="ico chico marca"><use href="#i-bien"/></svg></div>
+          <div role="option" tabindex="0" data-valor="sistema" aria-selected="false"><svg class="ico chico"><use href="#i-pantalla"/></svg>Igual que Windows<svg class="ico chico marca"><use href="#i-bien"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- 1 · Ajustes de un grupo -->
+    <section class="pantalla activa" id="p-ajustes" aria-labelledby="t-ajustes">
+      <div class="cab">
+        <div><h1 id="t-ajustes">Barra de tareas</h1><p>Lo que aparece en la barra de Windows y cómo se comporta.</p></div>
+        <div class="acciones">
+          <div class="desplegable" id="d-rapidas"><button type="button" aria-haspopup="menu" aria-expanded="false"><span style="display:inline-flex;align-items:center;gap:8px"><svg class="ico chico"><use href="#i-rayo"/></svg>Acciones rápidas</span><svg class="ico chico"><use href="#i-bajar"/></svg></button>
+            <div class="lista" role="menu">
+              <div role="menuitem" tabindex="0" data-accion="recomendado">Poner todo en «recomendado»…</div>
+              <div role="menuitem" tabindex="0" data-accion="predeterminado">Volver a los valores de Windows…</div>
+            </div></div>
+          <div class="desplegable" id="d-ver"><button type="button" aria-haspopup="menu" aria-expanded="false"><span style="display:inline-flex;align-items:center;gap:8px"><svg class="ico chico"><use href="#i-ojo"/></svg>Ver</span><svg class="ico chico"><use href="#i-bajar"/></svg></button>
+            <div class="lista" role="menu">
+              <div role="menuitem" tabindex="0" data-ver="detalles">Mostrar los detalles técnicos</div>
+              <div role="menuitem" tabindex="0" data-ver="cambios">Solo lo que no está en «recomendado»</div>
+            </div></div>
+        </div>
+      </div>
+      <div class="resumen"><span id="res-texto"></span><span class="barrita" aria-hidden="true"><i id="res-barra"></i></span></div>
+      <div class="filtros" role="group" aria-label="Filtrar">
+        <button class="chip" aria-pressed="true">Todos<span class="num">6</span></button>
+        <button class="chip" aria-pressed="false">Solo mi Windows (11 24H2)</button>
+      </div>
+      <div class="ajustes" id="lista-ajustes"></div>
+      <p class="simulado">Rutas y valores de ejemplo; los reales se comprobarán al construir cada ajuste. «Estado actual» sería la lectura real del registro de este equipo.</p>
+    </section>
+
+    <!-- 2 · Lista de grupos -->
+    <section class="pantalla" id="p-grupos" aria-labelledby="t-grupos">
+      <div class="cab">
+        <div><h1 id="t-grupos">Ajustes de Windows</h1><p>Cada grupo dice cuántos ajustes están como recomendamos y cuántos has cambiado tú.</p></div>
+        <div class="acciones"><button class="boton"><svg class="ico chico"><use href="#i-rayo"/></svg>Poner todo en «recomendado»…</button></div>
+      </div>
+      <div class="grupos" id="lista-grupos"></div>
+      <p class="simulado">Cifras de ejemplo.</p>
+    </section>
+
+    <!-- 3 · Quitar programas -->
+    <section class="pantalla" id="p-programas" aria-labelledby="t-prog">
+      <div class="cab">
+        <div><h1 id="t-prog">Quitar programas de Windows</h1><p>Marca lo que no quieras en este equipo. Antes de quitar nada se crea un punto de restauración.</p></div>
+      </div>
+      <div class="sel" role="group" aria-label="Selección rápida">
+        <button class="chip" data-sel="todo" aria-pressed="false">Marcar todo</button>
+        <button class="chip" data-sel="inst" aria-pressed="false">Marcar los instalados</button>
+        <button class="chip" data-sel="ninguno" aria-pressed="false">Quitar marcas</button>
+      </div>
+      <div class="programas" id="lista-programas"></div>
+      <div class="barra-accion">
+        <span class="texto" id="prog-texto"></span>
+        <button class="boton principal-b" id="prog-quitar" disabled>Quitar lo marcado…</button>
+      </div>
+    </section>
+
+    <!-- 4 · Revisar antes de aplicar -->
+    <section class="pantalla" id="p-revision" aria-labelledby="t-rev">
+      <div class="revision" role="region" aria-label="Revisión en curso">
+        <svg class="ico" style="color:var(--acento)"><use href="#i-ojo"/></svg>
+        <div class="que"><b id="t-rev">Revisando antes de aplicar</b><span id="rev-estado"></span></div>
+        <div class="ac"><button class="boton" id="rev-cancelar">Cancelar</button><button class="boton principal-b" id="rev-aplicar" disabled>Aplicar</button></div>
+      </div>
+      <div class="cab"><div><h1>Perfil «Entrega a cliente»</h1><p>Lo que cambiaría en este equipo. Hasta que pulses «Aplicar» no se toca nada.</p></div>
+        <div class="acciones"><button class="chip" id="rev-solo" aria-pressed="false">Solo lo que cambia</button></div></div>
+      <div class="lista-cambios" id="lista-cambios"></div>
+      <p class="simulado">Un perfil guardaría solo identificadores del catálogo; al importarlo se revisa así, paso a paso.</p>
+    </section>
+    <!-- 5 · Portada con tareas (idea de VoiceStudio: pocas tareas grandes, cada una con su frase) -->
+    <section class="pantalla ancha" id="p-inicio" aria-labelledby="t-inicio">
+      <div class="cab"><div><h1 id="t-inicio">¿Qué quieres hacer hoy?</h1><p>Elige lo más parecido. Antes de cambiar nada te cuento qué voy a hacer y tú decides.</p></div></div>
+      <div class="tarjetas grandes">
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-pulso"/></svg></span><h3>Revisar el equipo</h3><p>Compruebo discos, memoria, red y errores, y te digo qué encuentro. No cambio nada.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-lento"/></svg></span><h3>Va lento</h3><p>Tarda en encender, en abrir cosas o se queda pensando.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-wifi"/></svg></span><h3>No tengo Internet</h3><p>No carga ninguna página o se corta a ratos.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+      </div>
+      <div class="tarjetas">
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-ajustes"/></svg></span><h3>Ajustes de Windows</h3><p>Barra de tareas, energía, privacidad. Ves cómo está cada uno y cuál recomendamos.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-caja"/></svg></span><h3>Quitar programas</h3><p>Lo que viene de fábrica y no usas. Con punto de restauración antes.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-disco"/></svg></span><h3>Espacio en disco</h3><p>Qué ocupa más y qué se puede borrar sin riesgo.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-doc"/></svg></span><h3>Informe para el cliente</h3><p>Lo que se ha hecho y cómo ha quedado, listo para imprimir.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-lista"/></svg></span><h3>Combos de mantenimiento</h3><p>Varios pasos seguidos con una sola revisión previa.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+        <a class="tarjeta" href="#" tabindex="0"><span class="ficha"><svg class="ico"><use href="#i-llave"/></svg></span><h3>Todas las herramientas</h3><p>113 herramientas con buscador, filtros y favoritas.</p><svg class="ico flecha"><use href="#i-der"/></svg></a>
+      </div>
+      <div class="sec-tit"><h2>Perfiles guardados</h2><button class="enlace" type="button">Ver todos</button></div>
+      <div class="perfiles">
+        <div class="perfil"><span class="glifo" aria-hidden="true">E</span><span><h3>Entrega a cliente</h3><p>Ajustes recomendados, quitar programas de fábrica, informe final.</p></span><span class="num meta">7 pasos</span><button class="boton">Revisar y aplicar</button></div>
+        <div class="perfil"><span class="glifo" aria-hidden="true">P</span><span><h3>Puesta a punto rápida</h3><p>Temporales, arranque y comprobación de disco.</p></span><span class="num meta">4 pasos</span><button class="boton">Revisar y aplicar</button></div>
+      </div>
+      <p class="simulado">Las tarjetas grandes solo para lo que de verdad se hace cada día; el resto de la lista sigue siendo la de siempre. Un solo color de acento, sin iconos de colores distintos.</p>
+    </section>
+
+    <!-- 6 · Ajustes de la app (búsqueda a la izquierda, filas con el control a la derecha, selector Revisar / Directo) -->
+    <section class="pantalla ancha" id="p-config" aria-labelledby="t-config">
+      <div class="cab"><div><h1 id="t-config">Ajustes de Nitrit0</h1><p>Cómo trabaja el kit en este equipo.</p></div></div>
+      <div class="config">
+        <nav class="config-lista" aria-label="Secciones de ajustes">
+          <label class="buscador"><svg class="ico chico"><use href="#i-lupa"/></svg><input type="search" placeholder="Buscar un ajuste" aria-label="Buscar un ajuste"></label>
+          <button class="nav" aria-current="page"><svg class="ico"><use href="#i-ajustes"/></svg>General</button>
+          <button class="nav"><svg class="ico"><use href="#i-pantalla"/></svg>Apariencia</button>
+          <button class="nav"><svg class="ico"><use href="#i-candado"/></svg>Seguridad y privacidad</button>
+          <button class="nav"><svg class="ico"><use href="#i-doc"/></svg>Informes y registros</button>
+          <button class="nav"><svg class="ico"><use href="#i-historial"/></svg>Copias y deshacer</button>
+          <button class="nav"><svg class="ico"><use href="#i-ayuda"/></svg>Acerca de</button>
+        </nav>
+        <div class="config-filas">
+          <div class="fila-config"><div><h3>Idioma</h3><p>Idioma de la interfaz.</p></div>
+            <div class="desplegable" id="d-idioma"><button type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Idioma"><span id="idioma-txt">Español</span><svg class="ico chico"><use href="#i-bajar"/></svg></button>
+              <div class="lista" role="listbox"><div role="option" tabindex="0" data-valor="Español" aria-selected="true">Español<svg class="ico chico marca"><use href="#i-bien"/></svg></div><div role="option" tabindex="0" data-valor="English" aria-selected="false">English<svg class="ico chico marca"><use href="#i-bien"/></svg></div></div></div></div>
+          <div class="fila-config"><div><h3>Tema</h3><p>Oscuro, claro o el mismo que tenga Windows.</p></div>
+            <div class="desplegable" id="d-tema2"><button type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Tema"><span id="tema2-txt">Oscuro</span><svg class="ico chico"><use href="#i-bajar"/></svg></button>
+              <div class="lista" role="listbox" data-tema-lista>
+                <div role="option" tabindex="0" data-valor="oscuro" aria-selected="true">Oscuro<svg class="ico chico marca"><use href="#i-bien"/></svg></div>
+                <div role="option" tabindex="0" data-valor="claro" aria-selected="false">Claro<svg class="ico chico marca"><use href="#i-bien"/></svg></div>
+                <div role="option" tabindex="0" data-valor="sistema" aria-selected="false">Igual que Windows<svg class="ico chico marca"><use href="#i-bien"/></svg></div></div></div></div>
+          <div class="fila-config"><div><h3>Cómo aplico los cambios</h3><p><b>Revisar antes</b> me para en cada paso para que lo apruebes. <b>Directo</b> aplica el perfil sin pausas: solo para perfiles tuyos y de confianza.</p></div>
+            <div class="segmento acento" role="group" aria-label="Cómo aplico los cambios"><button type="button" aria-pressed="true" class="si" data-modo="revisar">Revisar antes</button><button type="button" aria-pressed="false" class="no" data-modo="directo">Directo</button></div></div>
+          <div class="fila-config"><div><h3>Nivel de detalle</h3><p>El modo técnico enseña rutas del registro, valores y registros de cada herramienta.</p></div>
+            <div class="segmento acento" role="group" aria-label="Nivel de detalle"><button type="button" aria-pressed="false" class="no">Sencillo</button><button type="button" aria-pressed="true" class="si">Técnico</button></div></div>
+          <div class="fila-config"><div><h3>Punto de restauración antes de cambiar</h3><p>Se crea uno, o se reutiliza el de los últimos 30 minutos.</p></div>
+            <button class="interruptor" role="switch" aria-checked="true" aria-label="Punto de restauración antes de cambiar"><span class="pista"></span><span class="texto">Activado</span></button></div>
+          <div class="fila-config"><div><h3>Herramientas delicadas</h3><p>Borrado a fondo, claves guardadas, actualizar Windows…</p></div>
+            <span class="estado" style="gap:8px"><svg class="ico"><use href="#i-candado"/></svg>Ocultas en este pack</span></div>
+          <div class="fila-config"><div><h3>Dónde se guardan los informes</h3><p>Este pack no deja nada en el pendrive: los informes viven en la carpeta temporal del PC y se borran a la hora.</p></div>
+            <code class="num ruta">%TEMP%\Nitrit0_Cache</code></div>
+        </div>
+      </div>
+      <p class="simulado">«Herramientas delicadas» no tiene interruptor en el pack público: cambiarlo es cosa de quien prepara el pendrive, no de quien lo usa.</p>
+    </section>
+  </main>
+  <div class="pie"><span>Listo</span><span class="num">E:\Nitrit0_Kit</span></div>
+</div>
+
+<script>
+/* ---------- Datos de ejemplo ---------- */
+const AJUSTES = [
+  { id: 'copilot', titulo: 'Botón de Copilot', desc: 'Muestra u oculta el botón de Copilot junto al menú Inicio.', tipo: 'int', def: true, rec: false, val: false,
+    ruta: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', nombre: 'ShowCopilotButton', tipoReg: 'REG_DWORD', v1: '1', v0: '0' },
+  { id: 'widgets', titulo: 'Widgets (noticias y tiempo)', desc: 'El panel de widgets que se abre desde la barra.', tipo: 'int', def: true, rec: false, val: true,
+    ruta: 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Dsh', nombre: 'AllowNewsAndInterests', tipoReg: 'REG_DWORD', v1: '(sin valor)', v0: '0' },
+  { id: 'meet', titulo: '«Reunirse ahora» en la bandeja', desc: 'Icono de videollamada de Skype que ya casi nadie usa.', tipo: 'int', def: true, rec: false, val: false,
+    ruta: 'HKCU\\Software\\Policies\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer', nombre: 'HideSCAMeetNow', tipoReg: 'REG_DWORD', v1: '(sin valor)', v0: '1' },
+  { id: 'vista', titulo: 'Botón de Vista de tareas', desc: 'El botón para ver todas las ventanas abiertas.', tipo: 'int', def: true, rec: false, val: true, gusto: true,
+    ruta: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', nombre: 'ShowTaskViewButton', tipoReg: 'REG_DWORD', v1: '1', v0: '0' },
+  { id: 'align', titulo: 'Alineación de los iconos', desc: 'Dónde empiezan los iconos de la barra.', tipo: 'sel', opciones: ['Izquierda', 'Centro'], def: 'Centro', rec: 'Izquierda', val: 'Centro', gusto: true,
+    ruta: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', nombre: 'TaskbarAl', tipoReg: 'REG_DWORD', map: { Izquierda: '0', Centro: '1' } },
+  { id: 'buscar', titulo: 'Cuadro de búsqueda', desc: 'Cómo se muestra la búsqueda en la barra.', tipo: 'sel', opciones: ['Oculto', 'Solo icono', 'Icono y texto', 'Cuadro completo'], def: 'Cuadro completo', rec: 'Solo icono', val: 'Icono y texto',
+    ruta: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Search', nombre: 'SearchboxTaskbarMode', tipoReg: 'REG_DWORD', map: { 'Oculto': '0', 'Solo icono': '1', 'Icono y texto': '3', 'Cuadro completo': '2' } }
+];
+const GRUPOS = [
+  { t: 'Barra de tareas', d: 'Botones, iconos y comportamiento.', rec: 13, pred: 17, pers: 1, tot: 20 },
+  { t: 'Energía', d: 'Suspensión, tapa del portátil, procesador.', rec: 19, pred: 25, pers: 0, tot: 35 },
+  { t: 'Privacidad y anuncios', d: 'Publicidad, telemetría, sugerencias.', rec: 31, pred: 59, pers: 0, tot: 88 },
+  { t: 'Rendimiento y juegos', d: 'Modo juego, gráficos, red.', rec: 65, pred: 78, pers: 1, tot: 112 },
+  { t: 'Actualizaciones de Windows', d: 'Cuándo y cómo se instalan.', rec: 5, pred: 9, pers: 1, tot: 12 }
+];
+const PROGRAMAS = [
+  { n: 'Cortana', d: 'Asistente de voz antiguo de Microsoft.', inst: true },
+  { n: 'Microsoft Teams (personal)', d: 'Chat y reuniones de la versión de consumo.', inst: true },
+  { n: 'Microsoft Edge', d: 'Navegador integrado en Windows.', inst: true, aviso: 'Si lo quitas, los widgets dejan de funcionar' },
+  { n: 'Paint 3D', d: 'Modelado 3D; Microsoft lo da por obsoleto.', inst: true, fijo: 'Microsoft ya no ofrece reinstalarlo' },
+  { n: 'Xbox Game Bar', d: 'Capa de juego con capturas y rendimiento.', inst: true },
+  { n: 'Solitaire Collection', d: 'Juegos de cartas con anuncios.', inst: false }
+];
+const CAMBIOS = [
+  { t: 'Botón de Copilot', de: 'Mostrar', a: 'Ocultar' },
+  { t: 'Widgets', de: 'Activado', a: 'Desactivado' },
+  { t: 'Alineación de los iconos', de: 'Centro', a: 'Izquierda' },
+  { t: 'Descarga de actualizaciones con datos móviles', de: 'Permitida', a: 'No permitida' },
+  { t: 'Modo juego', de: 'Activado', a: 'Activado', igual: true }
+];
+
+/* ---------- Utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const icono = (id, c = '') => `<svg class="ico ${c}"><use href="#i-${id}"/></svg>`;
+const txtBool = (v) => (v ? 'Activado' : 'Desactivado');
+
+/* ---------- Tema (desplegable) ---------- */
+const ICONO_TEMA = { oscuro: 'luna', claro: 'sol', sistema: 'pantalla' };
+const NOMBRE_TEMA = { oscuro: 'oscuro', claro: 'claro', sistema: 'igual que Windows' };
+function aplicarTema(v) {
+  const real = v === 'sistema' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'claro' : 'oscuro') : v;
+  document.documentElement.dataset.tema = real;
+  $('#tema-txt').textContent = 'Tema: ' + NOMBRE_TEMA[v];
+  $('#tema-ico').setAttribute('href', '#i-' + ICONO_TEMA[v]);
+  $('#tema2-txt').textContent = { oscuro: 'Oscuro', claro: 'Claro', sistema: 'Igual que Windows' }[v];
+  $$('#d-tema [role=option], #d-tema2 [role=option]').forEach((o) => o.setAttribute('aria-selected', String(o.dataset.valor === v)));
+}
+
+/* ---------- Desplegables genéricos ---------- */
+function cerrarTodos(salvo) { $$('.desplegable.abierto').forEach((d) => { if (d !== salvo) { d.classList.remove('abierto'); $('button', d).setAttribute('aria-expanded', 'false'); } }); }
+document.addEventListener('click', (e) => {
+  const d = e.target.closest('.desplegable');
+  if (!d) return cerrarTodos();
+  const boton = e.target.closest('.desplegable > button');
+  if (boton) { const abrir = !d.classList.contains('abierto'); cerrarTodos(d); d.classList.toggle('abierto', abrir); boton.setAttribute('aria-expanded', String(abrir)); if (abrir) { const o = $('[aria-selected=true], [role=menuitem], [role=option]', d); o && o.focus(); } return; }
+  const op = e.target.closest('[role=option], [role=menuitem]');
+  if (op) { d.dispatchEvent(new CustomEvent('elegir', { detail: op })); d.classList.remove('abierto'); $('button', d).setAttribute('aria-expanded', 'false'); $('button', d).focus(); }
+});
+document.addEventListener('keydown', (e) => {
+  const d = e.target.closest && e.target.closest('.desplegable');
+  if (e.key === 'Escape') { cerrarTodos(); }
+  if (d && d.classList.contains('abierto') && /^(ArrowDown|ArrowUp)$/.test(e.key)) { e.preventDefault(); const it = $$('[role=option], [role=menuitem]', d); const i = it.indexOf(document.activeElement); it[(i + (e.key === 'ArrowDown' ? 1 : -1) + it.length) % it.length].focus(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=option], [role=menuitem]')) { e.preventDefault(); e.target.click(); }
+});
+$('#d-tema').addEventListener('elegir', (e) => aplicarTema(e.detail.dataset.valor));
+$('#d-tema2').addEventListener('elegir', (e) => aplicarTema(e.detail.dataset.valor));
+$('#d-idioma').addEventListener('elegir', (e) => { $('#idioma-txt').textContent = e.detail.dataset.valor; $$('#d-idioma [role=option]').forEach((o) => o.setAttribute('aria-selected', String(o === e.detail))); });
+/* Segmentados e interruptores de la pantalla de ajustes de la app */
+$$('#p-config .segmento').forEach((s) => s.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) $$('button', s).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+$$('#p-config .interruptor').forEach((s) => s.addEventListener('click', () => { const on = s.getAttribute('aria-checked') !== 'true'; s.setAttribute('aria-checked', String(on)); $('.texto', s).textContent = on ? 'Activado' : 'Desactivado'; }));
+
+/* ---------- Pantalla 1: ajustes ---------- */
+let verDetalles = false, soloCambios = false;
+function estadoDe(a) {
+  if (a.val === a.rec) return a.val === a.def ? 'rec' : 'rec';
+  if (a.val === a.def) return a.gusto ? 'gusto' : 'pred';
+  return 'pers';
+}
+const ETIQ = { rec: ['ok', 'Como recomendamos', 'estado rec'], pred: ['circulo', 'Valor de Windows', 'estado pred'], pers: ['cambio', 'Valor distinto', 'estado pers'], gusto: ['gusto', 'Cuestión de gusto', 'estado gusto'] };
+function nombreValor(a, v) { return a.tipo === 'int' ? txtBool(v) : v; }
+function filaAjuste(a) {
+  const est = estadoDe(a);
+  const [ic, tx, cl] = ETIQ[est];
+  const ctl = a.tipo === 'int'
+    ? `<button class="interruptor" role="switch" aria-checked="${a.val}" aria-label="${a.titulo}" data-id="${a.id}"><span class="pista"></span><span class="texto">${txtBool(a.val)}</span></button>`
+    : `<div class="desplegable" data-id="${a.id}"><button type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${a.titulo}"><span>${a.val}</span>${icono('bajar', 'chico')}</button><div class="lista" role="listbox">${a.opciones.map((o) => `<div role="option" tabindex="0" data-valor="${o}" aria-selected="${o === a.val}">${o}${icono('bien', 'chico marca')}</div>`).join('')}</div></div>`;
+  const aRec = a.val !== a.rec ? `<button class="enlace" data-poner="${a.id}">${icono('bien')}Poner «${nombreValor(a, a.rec)}»</button>` : '';
+  const valorReg = a.tipo === 'int' ? (a.val ? a.v1 : a.v0) : a.map[a.val];
+  const recReg = a.tipo === 'int' ? (a.rec ? a.v1 : a.v0) : a.map[a.rec];
+  const defReg = a.tipo === 'int' ? (a.def ? a.v1 : a.v0) : a.map[a.def];
+  const portatil = a.id === 'align' ? '' : '';
+  return `<article class="ajuste" data-est="${est}">
+    <div><h3>${a.titulo}</h3><p>${a.desc}</p></div>
+    <div class="control">${ctl}</div>
+    <div class="estado-linea">
+      <span class="${cl}">${icono(ic)}${tx}</span>
+      <span>Recomendado: <b style="font-weight:500;color:var(--texto-suave)">${nombreValor(a, a.rec)}</b> · Windows: ${nombreValor(a, a.def)}</span>
+      ${aRec}
+    </div>
+    ${portatil}
+    <details class="detalles" ${verDetalles ? 'open' : ''}><summary>Detalles técnicos</summary>
+      <dl><dt>Ruta</dt><dd>${a.ruta}</dd><dt>Valor</dt><dd>${a.nombre} (${a.tipoReg})</dd><dt>Ahora</dt><dd>${valorReg}</dd><dt>Recomendado</dt><dd>${recReg}</dd><dt>Windows</dt><dd>${defReg}</dd><dt>Al aplicar</dt><dd>se guarda el valor anterior para «Deshacer cambios»</dd></dl>
+    </details>
+  </article>`;
+}
+function pintarAjustes() {
+  const lista = AJUSTES.filter((a) => !soloCambios || a.val !== a.rec);
+  $('#lista-ajustes').innerHTML = lista.map(filaAjuste).join('') || '<p class="simulado">Todo está como recomendamos.</p>';
+  const rec = AJUSTES.filter((a) => a.val === a.rec).length, pers = AJUSTES.filter((a) => estadoDe(a) === 'pers').length;
+  $('#res-texto').innerHTML = `<b style="font-weight:500;color:var(--texto)" class="n">${rec} de ${AJUSTES.length}</b> como recomendamos${pers ? ` · <span style="color:var(--aviso)" class="n">${pers}</span> con un valor distinto` : ''}`;
+  $('#res-barra').style.width = (rec / AJUSTES.length * 100) + '%';
+}
+$('#lista-ajustes').addEventListener('click', (e) => {
+  const sw = e.target.closest('.interruptor');
+  if (sw) { const a = AJUSTES.find((x) => x.id === sw.dataset.id); a.val = !a.val; pintarAjustes(); const n = $(`.interruptor[data-id=${a.id}]`); n && n.focus(); return; }
+  const poner = e.target.closest('[data-poner]');
+  if (poner) { const a = AJUSTES.find((x) => x.id === poner.dataset.poner); a.val = a.rec; pintarAjustes(); }
+});
+$('#lista-ajustes').addEventListener('elegir', (e) => { const a = AJUSTES.find((x) => x.id === e.target.dataset.id); a.val = e.detail.dataset.valor; pintarAjustes(); });
+$('#d-rapidas').addEventListener('elegir', (e) => {
+  const ac = e.detail.dataset.accion;
+  AJUSTES.forEach((a) => { a.val = ac === 'recomendado' ? a.rec : a.def; });
+  pintarAjustes();
+});
+$('#d-ver').addEventListener('elegir', (e) => {
+  if (e.detail.dataset.ver === 'detalles') verDetalles = !verDetalles; else soloCambios = !soloCambios;
+  $$('#d-ver [role=menuitem]').forEach((m) => { const on = m.dataset.ver === 'detalles' ? verDetalles : soloCambios; m.setAttribute('aria-checked', String(on)); m.innerHTML = (on ? icono('bien', 'chico') : '<span style="width:15px"></span>') + m.textContent.trim(); });
+  pintarAjustes();
+});
+
+/* ---------- Pantalla 2: grupos ---------- */
+$('#lista-grupos').innerHTML = GRUPOS.map((g) => `<div class="grupo" tabindex="0" role="button" aria-label="${g.t}: ${g.rec} de ${g.tot} como recomendamos${g.pers ? ', ' + g.pers + ' con valor distinto' : ''}">
+  <div><h3>${g.t}</h3><p>${g.d}</p></div>
+  <div class="cuentas"><span><b class="n" style="font-weight:500;color:var(--texto)">${g.rec} de ${g.tot}</b> como recomendamos</span><span class="barrita" aria-hidden="true"><i style="width:${g.rec / g.tot * 100}%"></i></span>${g.pers ? `<span style="color:var(--aviso)"><span class="n">${g.pers}</span> con valor distinto</span>` : ''}</div>
+  ${icono('der')}</div>`).join('');
+
+/* ---------- Pantalla 3: programas ---------- */
+const marcados = new Set();
+$('#lista-programas').innerHTML = PROGRAMAS.map((p, i) => `<label class="programa" data-i="${i}" data-marcado="false">
+  <input type="checkbox" class="casilla" data-i="${i}" aria-label="${p.n}">
+  <span class="glifo" aria-hidden="true">${p.n[0]}</span>
+  <span><h3>${p.n}</h3><p>${p.d}</p></span>
+  <span class="estados">
+    ${p.inst ? `<span class="estado rec">${icono('ok')}Instalado</span>` : `<span class="estado">${icono('circulo')}No instalado</span>`}
+    ${p.aviso ? `<span class="estado pers" title="${p.aviso}">${icono('aviso')}${p.aviso}</span>` : ''}
+    ${p.fijo ? `<span class="estado" title="${p.fijo}">${icono('cambio')}No se puede reinstalar</span>` : ''}
+  </span></label>`).join('');
+function pintarProgramas() {
+  $$('.programa').forEach((l) => { const m = marcados.has(+l.dataset.i); l.dataset.marcado = m; $('input', l).checked = m; });
+  const n = marcados.size;
+  $('#prog-texto').textContent = n ? `${n} marcado${n > 1 ? 's' : ''}. Se crea un punto de restauración y se anota cada cambio para poder deshacerlo.` : 'Marca lo que quieras quitar.';
+  $('#prog-quitar').disabled = !n;
+}
+$('#lista-programas').addEventListener('change', (e) => { const i = +e.target.dataset.i; e.target.checked ? marcados.add(i) : marcados.delete(i); pintarProgramas(); });
+$$('[data-sel]').forEach((b) => b.addEventListener('click', () => {
+  marcados.clear();
+  PROGRAMAS.forEach((p, i) => { if (b.dataset.sel === 'todo' || (b.dataset.sel === 'inst' && p.inst)) marcados.add(i); });
+  pintarProgramas();
+}));
+pintarProgramas();
+
+/* ---------- Pantalla 4: revisión ---------- */
+const decisiones = CAMBIOS.map((c) => (c.igual ? 'igual' : null));
+function pintarRevision() {
+  const solo = $('#rev-solo').getAttribute('aria-pressed') === 'true';
+  $('#lista-cambios').innerHTML = CAMBIOS.map((c, i) => (solo && c.igual) ? '' : `<article class="cambio" data-decision="${decisiones[i] || ''}">
+    <div><h3>${c.t}</h3><div class="dif">${c.igual ? 'Ya está así: <b>' + c.a + '</b>' : 'Ahora: <b>' + c.de + '</b> ' + icono('der', 'chico') + ' pasará a: <b>' + c.a + '</b>'}</div></div>
+    ${c.igual ? `<span class="estado rec">${icono('ok')}Ya coincide</span>` : `<div class="segmento" role="group" aria-label="Decidir ${c.t}"><button class="si" aria-pressed="${decisiones[i] === 'si'}" data-i="${i}" data-d="si">Aplicar</button><button class="no" aria-pressed="${decisiones[i] === 'no'}" data-i="${i}" data-d="no">No aplicar</button></div>`}
+  </article>`).join('');
+  const necesarios = CAMBIOS.map((c, i) => (c.igual ? null : i)).filter((x) => x !== null);
+  const hechas = necesarios.filter((i) => decisiones[i]).length, aplicar = necesarios.filter((i) => decisiones[i] === 'si').length;
+  $('#rev-estado').innerHTML = `<span class="n">${hechas} de ${necesarios.length}</span> revisados · <span class="n">${aplicar}</span> se aplicarán`;
+  $('#rev-aplicar').disabled = hechas < necesarios.length || !aplicar;
+  $('#rev-aplicar').textContent = aplicar ? `Aplicar ${aplicar}` : 'Aplicar';
+}
+$('#lista-cambios').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { decisiones[+b.dataset.i] = b.dataset.d; pintarRevision(); } });
+$('#rev-solo').addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-pressed') === 'true'; e.currentTarget.setAttribute('aria-pressed', String(!on)); pintarRevision(); });
+$('#rev-cancelar').addEventListener('click', () => { CAMBIOS.forEach((c, i) => { decisiones[i] = c.igual ? 'igual' : null; }); pintarRevision(); });
+
+/* ---------- Navegación entre pantallas de la propuesta ---------- */
+$$('[data-ir]').forEach((b) => b.addEventListener('click', () => {
+  $$('[data-ir]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  $$('.pantalla').forEach((p) => p.classList.toggle('activa', p.id === b.dataset.ir));
+  $('main').scrollTop = 0;
+}));
+const ir = new URLSearchParams(location.search).get('ir') || location.hash.slice(1); if (ir && $('[data-ir=' + ir + ']')) $('[data-ir=' + ir + ']').click(); scrollTo(0, 0);
+const temaPedido = new URLSearchParams(location.search).get('tema'); aplicarTema(['oscuro', 'claro', 'sistema'].includes(temaPedido) ? temaPedido : 'oscuro');
+pintarAjustes(); pintarRevision();
+</script>
+</body>
+</html>

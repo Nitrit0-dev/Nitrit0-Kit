@@ -1,0 +1,13 @@
+{
+  "appId": "es.nitrit0.limpieza",
+  "productName": "Nitrit0 Limpieza",
+  "electronVersion": "45.3.1",
+  "electronDist": "node_modules/electron/dist",
+  "extraMetadata": { "main": "./out-limpieza/main/index.js" },
+  "directories": { "output": "bin-limpieza" },
+  "extraResources": [{ "from": "build/icono-256.png", "to": "icono.png" }],
+  "files": ["out-limpieza/**", "package.json", "!**/node_modules/**"],
+  "compression": "maximum",
+  "win": { "target": [{ "target": "portable", "arch": ["x64"] }], "icon": "build/icono.ico", "signAndEditExecutable": false },
+  "portable": { "artifactName": "Nitrit0_Limpieza.exe", "requestExecutionLevel": "admin" }
+}

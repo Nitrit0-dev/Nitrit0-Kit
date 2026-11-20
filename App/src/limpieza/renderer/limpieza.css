@@ -1,0 +1,55 @@
+/* Solo lo que «Nitrit0 Limpieza» necesita además de la base visual del kit (tokens.css y componentes.css). */
+.resumen-barra { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--superficie); }
+.resumen-barra .grande { font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.resumen-barra .sub { color: var(--texto-suave); font-size: 13px; }
+.resumen-barra .hueco { flex: 1; }
+.fila-c { display: grid; grid-template-columns: 22px 1fr auto; gap: 14px; align-items: center; padding: 11px 8px; border-top: 1px solid var(--borde-suave); cursor: pointer; }
+.grupo > h2 + .fila-c { border-top: 0; }
+.fila-c:hover { background: var(--superficie-hover); border-radius: var(--radio-chico); }
+.fila-c input[type='checkbox'] { width: 16px; height: 16px; accent-color: var(--acento); margin: 0; }
+.fila-c h3 { margin: 0; font-size: 14px; font-weight: 500; }
+.fila-c p { margin: 1px 0 0; font-size: 13px; color: var(--texto-suave); }
+.fila-c .nota { font-size: 12px; margin-top: 2px; color: var(--tenue); }
+.fila-c .nota.aviso { color: var(--aviso); }
+.fila-c .tam { font: 500 13px var(--mono); color: var(--texto); text-align: right; min-width: 84px; }
+.fila-c .tam.cero { color: var(--tenue); }
+.fila-c .tam small { display: block; font: 12px var(--fuente); color: var(--tenue); }
+.fila-c.hecha .tam { color: var(--ok); }
+.fila-c.fallo .tam { color: var(--error); }
+.fila-i { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 11px 8px; border-top: 1px solid var(--borde-suave); }
+.fila-i:first-of-type { border-top: 0; }
+.fila-i:hover { background: var(--superficie-hover); border-radius: var(--radio-chico); }
+.fila-i h3 { margin: 0; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.fila-i .ruta { font: 12px var(--mono); color: var(--tenue); overflow-wrap: anywhere; margin-top: 2px; }
+.fila-i .amb { font-size: 12px; color: var(--texto-suave); }
+.fila-i.apagada h3 { color: var(--texto-suave); font-weight: 400; }
+.interruptor { position: relative; width: 40px; height: 22px; flex: none; }
+.interruptor input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.interruptor span { position: absolute; inset: 0; border-radius: 11px; background: var(--borde); transition: background .2s var(--ease); pointer-events: none; }
+.interruptor span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--texto); transition: transform .2s var(--ease); }
+.interruptor input:checked + span { background: var(--acento); }
+.interruptor input:checked + span::after { transform: translateX(18px); background: var(--texto-acento); }
+.interruptor input:focus-visible + span { outline: 2px solid var(--acento); outline-offset: 2px; }
+.interruptor input:disabled { cursor: default; }
+.interruptor input:disabled + span { opacity: .5; }
+@media (prefers-reduced-motion: reduce) { .interruptor span, .interruptor span::after { transition: none; } }
+.etiqueta { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--borde); color: var(--texto-suave); font-weight: 400; }
+.etiqueta.aviso { border-color: var(--aviso); color: var(--aviso); }
+.etiqueta.info { color: var(--acento); border-color: var(--acento); }
+.mini-acciones { display: flex; gap: 8px; align-items: center; }
+.con-icono { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.icono-app { width: 28px; height: 28px; flex: none; border-radius: 6px; object-fit: contain; }
+.icono-app.vacio-i { background: var(--superficie-hover); border: 1px solid var(--borde-suave); }
+.fila-i.apagada .icono-app { opacity: .55; }
+/* Aspecto de Windows 11: cada grupo es una tarjeta redondeada, con las filas dentro */
+.grupo { background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: 6px 10px 8px; }
+.grupo > h2 { padding: 8px 6px 6px; margin: 0; }
+.fila-c, .fila-i { padding-left: 6px; padding-right: 6px; }
+.resumen-barra { border-radius: 10px; }
+.cabecera h1 { font-weight: 600; }
+.nav { border-radius: 8px; }
+.nav[aria-current='page'] { position: relative; }
+.nav[aria-current='page']::before { content: ''; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--acento); }
+.principal { overflow-x: hidden; }
+.fila-i h3, .fila-c h3, .fila-c p { overflow-wrap: anywhere; }
+.fila-i > div, .fila-c > div { min-width: 0; }

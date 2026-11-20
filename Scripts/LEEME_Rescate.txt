@@ -1,0 +1,50 @@
+﻿PENDRIVE DE RESCATE - Equipos que no arrancan
+=============================================
+
+El kit Nitrit0 necesita un Windows que arranque. Para los equipos que no arrancan, el mismo
+pendrive puede servir también de disco de rescate. Esto se prepara una sola vez y a mano,
+porque instalar el arranque FORMATEA el pendrive.
+
+1. Preparar el pendrive (una vez)
+  a) Copia TODO el pendrive a una carpeta de un PC (la carpeta del kit completa, con Datos).
+  b) Descarga Ventoy desde su web oficial (ventoy.net) e instálalo en el pendrive.
+     Marca la opción de arranque seguro (Secure Boot) y deja el formato exFAT.
+     Esto borra el pendrive: comprueba antes la copia del paso a).
+  c) Vuelve a copiar la carpeta del kit al pendrive. Ventoy deja una partición normal:
+     el kit funciona igual que antes.
+  d) Ejecuta Scripts\Regenerar_Integridad.ps1 y pasa «Salud del pendrive» para confirmar
+     que no falta nada.
+
+2. Qué imágenes ISO copiar al pendrive (en una carpeta ISO, sin descomprimir)
+  - Windows 11: la ISO oficial de Microsoft. Sirve para reparar el arranque y para reinstalar.
+  - Hiren's BootCD PE: un Windows de rescate gratuito con explorador de archivos, gestor de
+    particiones, comprobación de discos y cambio de contraseñas de cuentas locales.
+  - Opcional, una distribución Linux «live» (por ejemplo Ubuntu): lee discos que el Windows
+    de rescate no consigue montar.
+  Descarga cada ISO solo de la web de su autor.
+
+3. Arrancar el equipo averiado
+  Con el pendrive puesto, enciende pulsando la tecla del menú de arranque (F12, F9, Esc o
+  F8 según la marca) y elige el pendrive. La primera vez con Secure Boot, Ventoy pide
+  registrar su clave: sigue lo que indica en pantalla (Enroll key).
+
+4. Casos habituales
+  - Rescatar datos: arranca Hiren's, abre el explorador y copia la carpeta Users\<usuario>
+    a un disco externo. Si el disco pide clave de BitLocker, hace falta la clave de
+    recuperación de 48 dígitos (cuenta Microsoft del cliente o el informe «Licencias y
+    BitLocker» si se hizo antes). Sin esa clave los datos no se pueden leer.
+  - Windows no arranca: arranca la ISO de Windows 11 > Reparar el equipo > Solucionar
+    problemas > Reparación de inicio. Si no basta, en Símbolo del sistema:
+        bootrec /scanos
+        bcdboot C:\Windows
+    (cambia C: por la letra que tenga Windows en ese entorno; compruébala con «dir»).
+  - Disco dañado: antes de reparar nada, saca los datos. Después comprueba el disco desde
+    Hiren's. Si hace ruidos o desaparece, no insistas: cada intento lo empeora.
+  - Contraseña olvidada: solo se puede cambiar la de una cuenta LOCAL. La de una cuenta
+    Microsoft se recupera en account.live.com/password/reset. Hazlo solo con el dueño del
+    equipo delante o con su autorización por escrito.
+
+5. Límites
+  - Un equipo cifrado con BitLocker sin su clave de recuperación no tiene rescate de datos.
+  - Los Mac y los equipos con procesador ARM no arrancan con estas ISO.
+  - El kit no puede preparar esto solo: el formateo del pendrive tiene que hacerlo una persona.

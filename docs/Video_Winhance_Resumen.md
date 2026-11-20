@@ -1,0 +1,26 @@
+# Vídeo «Esto deja WINDOWS como Debería SER | Winhance» (Tutos PC): resumen con tiempos
+
+Fecha de revisión: 2026-11-14. Vídeo de 18:22, canal Tutos PC (https://www.youtube.com/watch?v=SkicTBvPcfE). La transcripción es automática y confunde nombres propios («Winhams», «Wayne Hans», «W Util»…); lo que sigue es una **paráfrasis propia** con el minuto de cada tema, no la transcripción literal. Los minutos 1:12–2:13 son un patrocinio de licencias OEM y no se resumen.
+
+## Línea de tiempo
+
+| Min | Tema | Qué dice |
+|---|---|---|
+| 0:00 | Introducción | Windows 11 devuelve la barra de tareas movible tras 5 años; la comunidad arregla «otras 2000 cosas». Winhance quita bloatware «que no se deja quitar», instala apps externas y crea una ISO desatendida y optimizada. Se compara con WinUtil. |
+| 2:13 | ¿Es seguro? | Código abierto (licencia «no tan permisiva»: deja estudiar y modificar), proyecto grande aunque nació en febrero de 2025, Defender no encuentra nada. Consejo: «verificar antes de usar», sin paranoia. |
+| 3:25 | Frente a WinUtil | Winhance es compatible con **Windows 10** (WinUtil ya no); se instala en local (con versión **portable**, que se puede llevar en un pendrive); instalador con traducciones, incluido el español. |
+| 5:10 | Primer inicio | Crea **copia de la configuración actual** de Windows y sugiere un **punto de restauración**; hay varias vías para volver atrás. Desde Ajustes se cambia idioma y tema y se crea un punto de restauración cuando se quiera. |
+| 5:55 | Software y aplicaciones | Tres tipos de vista (compacta). Lista aplicaciones y características **instaladas o no, con el estado real del sistema**, que se actualiza. Icono de «¿se puede reinstalar?» (bandera si Microsoft ya no ofrece el medio) y **advertencia** donde quitar algo puede dar inestabilidad (p. ej. sin Edge no funcionan los widgets). Limpieza: marcar todo y desmarcar lo que se quiere conservar. Las «capacidades heredadas» no son bloatware: se pueden dejar. |
+| 7:21 | Scripts de eliminación continua | En la confirmación se puede crear un script que **al iniciar Windows vuelve a quitar** lo marcado si una actualización lo reinstala; se puede marcar algo que aún no está instalado (por ejemplo, Recall) para que quede bloqueado. Se anula desde «Estado de Winhance» (hay scripts aparte para Edge y OneDrive) y se abre su carpeta desde el botón «más». |
+| 8:47 | Software externo | Lista corta de apps útiles; cada una con un botón a su web oficial. No crea scripts. |
+| 9:11 | Optimización | Ajustes de energía (recuperando opciones del viejo panel), privacidad, rendimiento, actualizaciones, etc.; los cambios se aplican al instante. **Cada ajuste muestra indicadores**: *recomendado*, *predeterminado de Windows*, *preferencia* (recomendación subjetiva) y *personalizado* (ninguno coincide), y se actualizan al cambiar el valor. Un **filtro de versión** oculta lo que no corresponde a tu Windows. «Acciones rápidas»: aplicar todo lo recomendado (equilibrio «para la mayoría»). Interruptor de **detalles técnicos**: ruta del registro y valor de cada opción. |
+| 11:36 | Personalizar | Igual que Optimización (con recomendados). Botones de **limpiar** barra de tareas y menú Inicio (solo recomendable en instalaciones recientes). Estas dos funciones y la de software **no se pueden restaurar con la copia**. Reiniciar al terminar. |
+| 12:19 | Resultados | Frente a un Windows 11 recién instalado: poca bajada de RAM, pero **30 procesos menos**. El autor dice que no busca hiperoptimizar para juegos, sino equilibrio sin romper cosas. |
+| 12:52 | Modo constructor y modo revisión | Se puede **exportar** la configuración a un archivo y reutilizarla en varios equipos. El **modo constructor** edita una plantilla sin aplicar nada al equipo actual (con el filtro de versión desactivado se pueden preparar ajustes de Windows 10 desde un 11). Al **importar**, se entra por defecto en **modo revisión**: se revisa y aprueba cambio a cambio (azul = pendiente, tilde verde = sección revisada) y luego se aplica; si el archivo es de confianza se puede saltar la revisión. Desde ese panel también se restaura una copia o se vuelve a los valores de fábrica. Al aplicar en otro equipo se **ignoran** los ajustes que no corresponden a su versión. |
+| 14:54 | Crear ISO | Asistente por pasos: ISO original (enlaces de descarga) → extraer (opción de pasar a ESD) → XML de ajustes (generar uno propio, descargar el recomendado o elegir uno) → añadir **drivers del propio equipo** u otra carpeta → componente oficial de Microsoft para montar la ISO (se descarga solo si se usa). La ISO omite requisitos de hardware de Windows 11 y la cuenta Microsoft (cuenta local). Prueba: unos 6 GB menos que una instalación normal. |
+| 17:51 | Conclusiones | Sirve a técnicos y a no técnicos: ajustar un equipo, varios, o llevar la personalización a una ISO. |
+
+## Avisos útiles que salen de los comentarios del vídeo (no del vídeo)
+
+- Un usuario de portátil advierte: «úsalo con pinzas»; dice que deshabilita la suspensión al bajar la tapa y el inicio de sesión con huella o reconocimiento facial (Windows Hello). Es un comentario de un espectador, **sin comprobar**, pero encaja con lo que ya sabemos: los ajustes de energía y privacidad conviene tratarlos aparte en portátiles.
+- Otro comenta que WinUtil ya no es compatible con Windows 10.

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de pantalla - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#ffd166; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; } header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:880px; margin:0 auto; padding:24px 28px 40px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 22px; margin-bottom:18px; }
+  .panel h2 { margin:0 0 10px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); }
+  button { background:var(--acc); color:#2a2000; border:0; border-radius:12px; padding:14px 26px; font:600 16px "Segoe UI",sans-serif; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  ul { margin:6px 0 0 18px; padding:0; color:var(--mut); font-size:14px; } li { margin-bottom:4px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:14px; }
+  .mini { height:56px; border-radius:10px; border:1px solid var(--line); cursor:pointer; font-size:11px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px; color:#fff; text-shadow:0 0 3px #000; }
+  #pantalla { position:fixed; inset:0; z-index:10; display:none; cursor:none; }
+  #pantalla.on { display:block; }
+  #aviso { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:rgba(0,0,0,.72); color:#fff; padding:8px 18px; border-radius:999px; font-size:14px; transition:opacity .6s; pointer-events:none; }
+  .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#8a6a00;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#8a6a00;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] .principal,:root[data-tema="claro"] button.p,:root[data-tema="claro"] #ini{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) .principal,:root:not([data-tema="oscuro"]) button.p,:root:not([data-tema="oscuro"]) #ini{color:#fff!important}}</style>
+
+</head>
+<body>
+<header><h1>Prueba de pantalla</h1><p>Colores, degradados y rejillas a pantalla completa. Funciona sin internet.</p></header>
+<main>
+  <div class="panel">
+    <h2>Cómo usarla</h2>
+    <button id="ini">Iniciar a pantalla completa</button>
+    <ul>
+      <li><b>Clic, espacio o flecha derecha:</b> siguiente patrón. <b>Flecha izquierda:</b> anterior. <b>Esc:</b> salir.</li>
+      <li><b>Negro:</b> busca fugas de luz en las esquinas y bordes (con la luz de la habitación apagada).</li>
+      <li><b>Blanco, rojo, verde y azul:</b> busca píxeles muertos (puntos negros) o atascados (puntos de color fijo) y manchas.</li>
+      <li><b>Degradados:</b> deben verse suaves, sin bandas marcadas ni escalones.</li>
+      <li><b>Rejilla y damero:</b> comprueba la nitidez y que las líneas sean rectas.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h2>Ir directamente a un patrón</h2>
+    <div class="grid" id="mini"></div>
+  </div>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+<div id="pantalla"></div><div id="aviso" style="display:none"></div>
+
+<script>
+(function () {
+  var patrones = [
+    ['Negro', '#000'], ['Blanco', '#fff'], ['Rojo', '#f00'], ['Verde', '#0f0'], ['Azul', '#00f'],
+    ['Gris 50 %', '#808080'], ['Cian', '#0ff'], ['Magenta', '#f0f'], ['Amarillo', '#ff0'],
+    ['Degradado gris', 'linear-gradient(90deg,#000,#fff)'],
+    ['Degradado rojo', 'linear-gradient(90deg,#000,#f00)'],
+    ['Degradado verde', 'linear-gradient(90deg,#000,#0f0)'],
+    ['Degradado azul', 'linear-gradient(90deg,#000,#00f)'],
+    ['Arcoíris', 'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)'],
+    ['Rejilla', 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 40px),repeating-linear-gradient(90deg,#fff 0 1px,#000 1px 40px)'],
+    ['Damero', 'repeating-conic-gradient(#fff 0 25%,#000 0 50%) 0 0/60px 60px'],
+    ['Líneas finas', 'repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 2px)']
+  ];
+  var pan = document.getElementById('pantalla'), aviso = document.getElementById('aviso'), i = 0, t = null;
+  function fondo(p) { return p.charAt(0) === '#' ? p : p; }
+  function pintar() {
+    var p = patrones[i]; pan.style.background = p[1];
+    aviso.textContent = (i + 1) + ' / ' + patrones.length + ' · ' + p[0] + ' · clic = siguiente · Esc = salir';
+    aviso.style.display = 'block'; aviso.style.opacity = 1; clearTimeout(t); t = setTimeout(function () { aviso.style.opacity = 0; }, 2200);
+  }
+  function abrir(n) {
+    i = n || 0; pan.className = 'on'; pintar();
+    var el = document.documentElement; if (el.requestFullscreen) { el.requestFullscreen().catch(function () { }); }
+  }
+  function cerrar() { pan.className = ''; aviso.style.display = 'none'; if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); }
+  function sig(d) { i = (i + d + patrones.length) % patrones.length; pintar(); }
+  document.getElementById('ini').addEventListener('click', function () { abrir(0); });
+  pan.addEventListener('click', function () { sig(1); });
+  document.addEventListener('keydown', function (e) {
+    if (pan.className !== 'on') return;
+    if (e.key === 'Escape') { cerrar(); }
+    else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sig(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); sig(-1); }
+  });
+  document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement) { pan.className = ''; aviso.style.display = 'none'; } });
+  var mini = document.getElementById('mini');
+  patrones.forEach(function (p, n) {
+    var d = document.createElement('div'); d.className = 'mini'; d.style.background = p[1]; d.textContent = p[0];
+    d.addEventListener('click', function () { abrir(n); }); mini.appendChild(d);
+  });
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"\u263E  Modo oscuro":"\u2600  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>

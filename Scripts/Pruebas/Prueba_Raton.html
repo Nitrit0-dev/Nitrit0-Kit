@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de ratón y táctil - Nitrit0</title>
+<style>
+  :root { --bg:#12151c; --card:#1e2330; --line:#2e3548; --txt:#f0f3fa; --mut:#9aa3b8; --acc:#ff8a5b; --ok:#35c58f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 "Segoe UI",system-ui,sans-serif; user-select:none; }
+  header { background:var(--head); padding:18px 28px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:22px; font-weight:600; } header p { margin:2px 0 0; color:var(--mut); font-size:13px; }
+  main { max-width:1000px; margin:0 auto; padding:22px 28px 40px; display:grid; grid-template-columns:1fr 320px; gap:20px; }
+  @media (max-width:860px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px 18px; margin-bottom:16px; }
+  .panel h2 { margin:0 0 10px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); }
+  canvas { width:100%; height:380px; background:var(--head); border:1px solid var(--line); border-radius:14px; touch-action:none; cursor:crosshair; display:block; }
+  .botones { display:flex; gap:8px; margin-bottom:12px; }
+  .b { flex:1; text-align:center; padding:14px 4px; border-radius:10px; background:var(--btn); border:1px solid var(--line); font-size:13px; }
+  .b.on { background:var(--ok); color:#04241a; border-color:var(--ok); font-weight:600; }
+  dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:14px; } dt { color:var(--mut); } dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  button { width:100%; background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px; font:inherit; cursor:pointer; margin-top:10px; }
+  .ayuda { color:var(--mut); font-size:13px; margin:0; } .pie { text-align:center; color:var(--mut); font-size:12px; padding-bottom:24px; }
+</style>
+<style id="nit-tema">:root{--head:#0d1016;--btn:#272d3f;--pre:#141821;--pretxt:#c9d1e4;--cuerpo:#c3cbdd}:root[data-tema="claro"]{--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]){--bg:#f3f5f9;--card:#fff;--line:#c5cedd;--txt:#1b2230;--mut:#4f5a70;--head:#fff;--btn:#e3e8f1;--pre:#edf0f6;--pretxt:#253044;--cuerpo:#2c3548;--acc:#b8501f;--ok:#117a52;--err:#c22b2b;--warn:#9a5f00;--o:#117a52;--a:#9a5f00;--f:#c22b2b;--i:#2f52c2}}#nit-btn{position:fixed;right:14px;top:12px;z-index:50;background:var(--btn);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font:600 13px "Segoe UI",sans-serif;cursor:pointer;width:auto;margin:0}:root[data-tema="claro"] .principal,:root[data-tema="claro"] button.p,:root[data-tema="claro"] #ini{color:#fff!important}@media (prefers-color-scheme: light){:root:not([data-tema="oscuro"]) .principal,:root:not([data-tema="oscuro"]) button.p,:root:not([data-tema="oscuro"]) #ini{color:#fff!important}}</style>
+
+</head>
+<body>
+<header><h1>Prueba de ratón, panel táctil y pantalla táctil</h1><p>Mueve, pulsa, gira la rueda y dibuja. Funciona sin internet.</p></header>
+<main>
+  <section>
+    <canvas id="lienzo"></canvas>
+    <p class="ayuda" style="margin-top:10px">Dibuja con el ratón, el panel táctil, el dedo o el lápiz. Si la línea se corta o salta, el dispositivo falla. Con varios dedos se pintan puntos de distinto color.</p>
+  </section>
+  <aside>
+    <div class="panel">
+      <h2>Botones</h2>
+      <div class="botones"><div class="b" id="b0">Izq.</div><div class="b" id="b1">Rueda</div><div class="b" id="b2">Der.</div></div>
+      <div class="botones"><div class="b" id="b3">Atrás</div><div class="b" id="b4">Adelante</div><div class="b" id="dc">Doble clic</div></div>
+    </div>
+    <div class="panel">
+      <h2>Datos en vivo</h2>
+      <dl>
+        <dt>Posición</dt><dd id="pos">-</dd>
+        <dt>Dispositivo</dt><dd id="tipo">-</dd>
+        <dt>Puntos de contacto</dt><dd id="dedos">0</dd>
+        <dt>Presión</dt><dd id="pres">-</dd>
+        <dt>Rueda vertical</dt><dd id="rv">0</dd>
+        <dt>Rueda horizontal</dt><dd id="rh">0</dd>
+        <dt>Clics izq./der./centro</dt><dd id="cl">0 / 0 / 0</dd>
+      </dl>
+      <button id="limpiar">Borrar dibujo y contadores</button>
+    </div>
+  </aside>
+</main>
+<p class="pie">Nitrit0 Kit</p>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var c = $('lienzo'), g = c.getContext('2d'), cl = [0, 0, 0], rv = 0, rh = 0, activos = {}, ultimo = {};
+  var colores = ['#2bc4d8', '#ff8a5b', '#35c58f', '#ffd166', '#ff6ba9', '#a56cff'];
+  function ajustar() { var r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1; c.width = r.width * d; c.height = r.height * d; g.setTransform(d, 0, 0, d, 0, 0); g.lineCap = 'round'; g.lineJoin = 'round'; }
+  ajustar(); window.addEventListener('resize', ajustar);
+  function xy(e) { var r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  c.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  c.addEventListener('pointerdown', function (e) {
+    c.setPointerCapture(e.pointerId); activos[e.pointerId] = true; ultimo[e.pointerId] = xy(e);
+    $('dedos').textContent = Object.keys(activos).length;
+  });
+  c.addEventListener('pointermove', function (e) {
+    var p = xy(e); $('pos').textContent = Math.round(p[0]) + ', ' + Math.round(p[1]);
+    $('tipo').textContent = e.pointerType === 'mouse' ? 'Ratón / panel' : e.pointerType === 'touch' ? 'Táctil' : e.pointerType === 'pen' ? 'Lápiz' : e.pointerType;
+    $('pres').textContent = e.pressure ? e.pressure.toFixed(2) : '-';
+    if (activos[e.pointerId]) {
+      var u = ultimo[e.pointerId] || p, n = Object.keys(activos).indexOf(String(e.pointerId));
+      g.strokeStyle = colores[n % colores.length]; g.lineWidth = 2 + (e.pressure || 0.5) * 5;
+      g.beginPath(); g.moveTo(u[0], u[1]); g.lineTo(p[0], p[1]); g.stroke(); ultimo[e.pointerId] = p;
+    }
+  });
+  function fin(e) { delete activos[e.pointerId]; delete ultimo[e.pointerId]; $('dedos').textContent = Object.keys(activos).length; }
+  c.addEventListener('pointerup', fin); c.addEventListener('pointercancel', fin);
+  document.addEventListener('mousedown', function (e) {
+    var b = $('b' + e.button); if (b) b.classList.add('on');
+    if (e.button < 3) { cl[e.button === 0 ? 0 : e.button === 2 ? 1 : 2]++; $('cl').textContent = cl.join(' / '); }
+  });
+  document.addEventListener('mouseup', function (e) { var b = $('b' + e.button); if (b) b.classList.remove('on'); });
+  document.addEventListener('dblclick', function () { var d = $('dc'); d.classList.add('on'); setTimeout(function () { d.classList.remove('on'); }, 400); });
+  document.addEventListener('wheel', function (e) { rv += e.deltaY; rh += e.deltaX; $('rv').textContent = Math.round(rv); $('rh').textContent = Math.round(rh); e.preventDefault(); }, { passive: false });
+  $('limpiar').addEventListener('click', function () { g.clearRect(0, 0, c.width, c.height); cl = [0, 0, 0]; rv = rh = 0; $('cl').textContent = '0 / 0 / 0'; $('rv').textContent = 0; $('rh').textContent = 0; });
+})();
+</script>
+<button id="nit-btn" type="button" title="Cambiar entre modo claro y oscuro"></button>
+<script>(function(){var r=document.documentElement,b=document.getElementById("nit-btn");function act(){var c=r.getAttribute("data-tema")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"claro":"oscuro");return c}function pinta(){b.textContent=act()==="claro"?"\u263E  Modo oscuro":"\u2600  Modo claro"}try{var g=localStorage.getItem("nit_tema");if(g)r.setAttribute("data-tema",g)}catch(e){}b.addEventListener("click",function(){var n=act()==="claro"?"oscuro":"claro";r.setAttribute("data-tema",n);try{localStorage.setItem("nit_tema",n)}catch(e){}pinta()});pinta()})();</script>
+</body>
+</html>
