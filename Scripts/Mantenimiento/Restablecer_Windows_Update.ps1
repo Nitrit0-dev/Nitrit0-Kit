@@ -23,7 +23,7 @@ foreach ($c in "$env:SystemRoot\SoftwareDistribution", "$env:SystemRoot\System32
 }
 Write-Output "  $($E.Refresh) Registrando de nuevo los componentes…"
 foreach ($d in 'atl.dll', 'urlmon.dll', 'mshtml.dll', 'shdocvw.dll', 'browseui.dll', 'jscript.dll', 'vbscript.dll', 'scrrun.dll', 'msxml3.dll', 'msxml6.dll', 'actxprxy.dll', 'softpub.dll', 'wintrust.dll', 'initpki.dll', 'wuapi.dll', 'wuaueng.dll', 'wups.dll', 'wups2.dll', 'wuwebv.dll') { [void](Invoke-Proceso 'regsvr32.exe' "/s $d" 30 "regsvr32 $d" 60) }
-[void](Invoke-Proceso 'netsh.exe' 'winsock reset' 60 'Winsock' 60)
+[void](Invoke-Proceso (Join-Path $env:SystemRoot 'System32\netsh.exe') 'winsock reset' 60 'Winsock' 60)
 Write-Output "  $($E.Reloj) Iniciando servicios…"
 foreach ($s in $serv) { try { Start-Service $s -ErrorAction Stop; Write-Output "    iniciado: $s" } catch { Write-Output "    $($E.Aviso) $s : $($_.Exception.Message)" } }
 Write-Output "`n  $($E.OK) Hecho. Reinicia el equipo y busca actualizaciones de nuevo."

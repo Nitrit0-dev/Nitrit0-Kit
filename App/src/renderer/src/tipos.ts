@@ -1,4 +1,4 @@
-import type { KitApi } from '../../preload'
+﻿import type { KitApi } from '../../preload'
 
 declare global { interface Window { kit: KitApi } }
 
@@ -18,9 +18,9 @@ export interface Resumen {
   equipo: string; modelo: string; cpu: string; nucleos: number; hilos: number; ramGb: number
   windows: string; version: string; arranque: string; bios: string; discos: Disco[]; volumenes: Volumen[]
   bateria: { carga: number; estado: number } | null
-  biosFecha?: string; placa?: string; graficas?: { nombre: string; driver: string }[]; arquitectura?: string; instalado?: string
+  biosFecha?: string; placa?: string; graficas?: { nombre: string; driver: string }[]; arquitectura?: string; instalado?: string; edicion?: string; compilacion?: string
 }
-export interface Vivo { cpu: number; ramUsadaGb: number; ramGb: number }
+export interface Vivo { cpu: number; cpuTemp?: number | null; cpuMotivo?: string; ramUsadaGb: number; ramGb: number; gpu?: { uso: number; temp: number | null; watios: number | null; ventilador?: number | null; relojNucleo?: number | null; relojMemoria?: number | null; vramUsadaMb?: number | null; vramTotalMb?: number | null } | null }
 /** Un ajuste de Windows tal como lo devuelve Ajustes_Para_App.ps1: el estado actual, el de fábrica y el recomendado (null = cuestión de gusto). */
 /** Si la app está elevada con otra cuenta de administrador, HKCU sería el de esa cuenta: Ajustes_Para_App.ps1 lo detecta y no aplica nada. */
 export interface OtraCuenta { otra: boolean; proceso?: string; sesion?: string }
@@ -30,7 +30,7 @@ export interface AjusteInfo {
   ruta: string; nombre: string; tipoReg: string; aplicable: boolean; minBuild: number
 }
 export type IdPerfil = 'ahorro' | 'equilibrado' | 'juego'
-export interface Estado { instalada?: boolean; hayInstalacion?: boolean; puedeInstalar?: boolean; memoriaAuto?: boolean; perfil?: IdPerfil | null; arranque?: boolean; preguntado?: boolean; admin: boolean; ocultarPeligro?: boolean;tema: 'oscuro' | 'claro' | 'sistema'; modo: 'sencillo' | 'tecnico'; ultima?: Ultima | null; favoritos: string[]; kit: string; zoom?: number }
+export interface Estado { instalada?: boolean; hayInstalacion?: boolean; puedeInstalar?: boolean; memoriaAuto?: boolean; perfil?: IdPerfil | null; arranque?: boolean; preguntado?: boolean; admin: boolean; ocultarPeligro?: boolean; antivirus?: boolean; tema: 'oscuro' | 'claro' | 'sistema'; modo: 'sencillo' | 'tecnico'; ultima?: Ultima | null; favoritos: string[]; kit: string; zoom?: number }
 
 /** Herramienta esperando en la cola de ejecución (se ejecuta al terminar la que está en marcha). */
 export interface EnCola { id: string; titulo: string }

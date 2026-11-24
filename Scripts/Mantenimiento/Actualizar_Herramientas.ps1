@@ -69,4 +69,6 @@ foreach ($x in $elegidas) {
     else { $mal++; Write-Output "  $($E.Aviso) $($x.E.N) no se actualizó: $($res.Mensaje)"; Write-Log "Actualizar_Herramientas: $($x.E.N) falló ($($res.Mensaje))" 'AVISO' }
 }
 Write-Output "`n$($E.OK) $bien actualizada(s)$(if ($mal) { ", $mal con error" }). La versión anterior de cada una está en Datos\Respaldo."
+# La lista de integridad guarda la huella de cada archivo: tras actualizar, las herramientas nuevas no coinciden y el kit puede avisar de manipulación
+if ($bien) { Write-Output "  $($E.Aviso) Falta un paso: ejecuta Scripts\Regenerar_Integridad.ps1 en tu equipo de trabajo para que las herramientas actualizadas consten como válidas. No se hace solo para que nadie dé por buena una descarga sin mirarla." }
 if ($mal) { exit 1 }

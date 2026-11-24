@@ -156,8 +156,9 @@ foreach ($app in $AEliminar) {
     foreach ($pk in @(Get-AppxPackage -AllUsers -Name "*$($app.Patron)*" -ErrorAction SilentlyContinue)) { Save-Informativo "App quitada: $($pk.Name)" $pk.PackageFullName }
     Write-Output "  $($E.Reloj) Quitando: $($app.Descripcion)..."
     try {
-        Get-AppxPackage -AllUsers -Name "*$($app.Patron)*" -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*$($app.Patron)*" } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+        # -ErrorAction Stop: con SilentlyContinue el error nunca llegaba al «catch» y siempre decía «Eliminada correctamente»
+        Get-AppxPackage -AllUsers -Name "*$($app.Patron)*" -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction Stop
+        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*$($app.Patron)*" } | Remove-AppxProvisionedPackage -Online -ErrorAction Stop | Out-Null
         Write-Output "    $($E.OK) Eliminada correctamente."
         $Quitadas++
     } catch {

@@ -8,6 +8,7 @@
 param([Alias('Simular')][switch]$SoloAnalizar)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if (-not $SoloAnalizar) { Assert-Admin 'activar la seguridad de Windows' }
 if ($SoloAnalizar) {
     Write-Output "  $($E.Lupa) Modo análisis: estado actual (no se cambia nada)"
     try { $m = Get-MpComputerStatus -ErrorAction Stop; Write-Output "    Defender: tiempo real $(if ($m.RealTimeProtectionEnabled) { 'ACTIVO' } else { 'DESACTIVADO' }) · firmas de hace $($m.AntivirusSignatureAge) día(s)" } catch { Write-Output "    Defender: no disponible (otro antivirus o bloqueado)" }

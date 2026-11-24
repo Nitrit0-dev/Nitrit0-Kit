@@ -8,6 +8,7 @@
 # =====================================================================
 [CmdletBinding()]
 param([switch]$Auto, [string]$Id, [Alias('Simular')][switch]$SoloAnalizar)
+if ($env:NIT_DESHACER_ID) { $Id = $env:NIT_DESHACER_ID }   # lo pasa la app desde el historial de cambios (ya validado allí)
 if ($env:NIT_AUTO) { $Auto = $true }   # desde la app no hay ventana para elegir: se deshace la sesión más reciente
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
@@ -20,6 +21,14 @@ $ses = @($ses | Sort-Object Name -Descending)
 Write-Output "========================================================"
 Write-Output "  $($E.Refresh) DESHACER CAMBIOS"
 Write-Output "========================================================"
+# Los respaldos viven en el pendrive y viajan de cliente en cliente: solo se deshacen los de ESTE equipo. Aplicar el BCD, la IP, el nombre o el registro de otro PC podría dejar este sin arrancar o sin red.
+$propias = @(); $ajenas = 0
+foreach ($s in $ses) {
+    $eq = $null; try { $eq = [string](Get-Content -LiteralPath (Join-Path $s.FullName 'cambios.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop).Equipo } catch { }
+    if ($eq -and $eq -ine $env:COMPUTERNAME) { $ajenas++ } else { $propias += $s }
+}
+if ($ajenas) { Write-Output "  $($E.Info) $ajenas sesión(es) de otros equipos no se muestran ni se pueden deshacer aquí." }
+$ses = @($propias)
 if (-not $ses) { Write-Output "  $($E.Info) No hay cambios registrados que deshacer."; return }
 if ($SoloAnalizar) {
     Write-Output "  $($E.Lupa) Sesiones que se podrían deshacer (de la más reciente a la más antigua):"
@@ -27,6 +36,7 @@ if ($SoloAnalizar) {
     Exit-Kit 'Ok' 'Modo análisis: solo se han listado; no se ha deshecho nada.'
 }
 
+Assert-Admin 'deshacer cambios del sistema'   # sin administrador fallaría casi todo (HKLM, servicios, BCD, DNS) y dejaría la sesión a medias
 $sel = $null
 if ($Id) { $sel = $ses | Where-Object { $_.Name -eq $Id } | Select-Object -First 1 }
 elseif ($Auto) { $sel = $ses[0] }
@@ -61,7 +71,7 @@ foreach ($c in $cambios) {
         switch ($c.Tipo) {
             'Registro' {
                 $nombre = if ($c.Nombre -eq '(default)') { '' } else { $c.Nombre }
-                if ($c.ValorExistia) { New-Item -Path $c.Ruta -Force -ErrorAction SilentlyContinue | Out-Null; Set-ItemProperty -LiteralPath $c.Ruta -Name $c.Nombre -Value (Convertir-Valor $c.Previo $c.TipoPrevio) -Type $(if ($c.TipoPrevio -eq 'ExpandString') { 'ExpandString' } else { $c.TipoPrevio }) -Force -ErrorAction Stop }
+                if ($c.ValorExistia) { New-Item -Path ([Management.Automation.WildcardPattern]::Escape([string]$c.Ruta)) -Force -ErrorAction SilentlyContinue | Out-Null; Set-ItemProperty -LiteralPath $c.Ruta -Name $c.Nombre -Value (Convertir-Valor $c.Previo $c.TipoPrevio) -Type $(if ($c.TipoPrevio -eq 'ExpandString') { 'ExpandString' } else { $c.TipoPrevio }) -Force -ErrorAction Stop }
                 else {
                     if (Test-Path -LiteralPath $c.Ruta) { if ($nombre -eq '') { Set-ItemProperty -LiteralPath $c.Ruta -Name '(default)' -Value '' -ErrorAction SilentlyContinue } else { Remove-ItemProperty -LiteralPath $c.Ruta -Name $c.Nombre -ErrorAction Stop } }
                     if (-not $c.ClaveExistia -and (Test-Path -LiteralPath $c.Ruta)) { $it = Get-Item -LiteralPath $c.Ruta; if (-not $it.SubKeyCount -and -not ($it.GetValueNames() | Where-Object { $_ })) { Remove-Item -LiteralPath $c.Ruta -Force -ErrorAction SilentlyContinue } }
@@ -72,8 +82,9 @@ foreach ($c in $cambios) {
             'Servicio' {
                 $mapa = @{ Auto = 'Automatic'; Manual = 'Manual'; Disabled = 'Disabled'; Boot = 'Automatic'; System = 'Automatic' }
                 Set-Service -Name $c.Servicio -StartupType $mapa[[string]$c.InicioPrevio] -ErrorAction Stop
-                if ($c.EstadoPrevio -eq 'Running') { Start-Service -Name $c.Servicio -ErrorAction SilentlyContinue }
-                Write-Output "    $($E.OK) Servicio $($c.Servicio): inicio $($c.InicioPrevio)$(if ($c.EstadoPrevio -eq 'Running') { ', en ejecución' })"
+                $arrancado = $true
+                if ($c.EstadoPrevio -eq 'Running') { try { Start-Service -Name $c.Servicio -ErrorAction Stop } catch { $arrancado = $false; Write-Output "    $($E.Aviso) Servicio $($c.Servicio): no se pudo arrancar ($($_.Exception.Message)); se reiniciará con el equipo." } }
+                Write-Output "    $($E.OK) Servicio $($c.Servicio): inicio $($c.InicioPrevio)$(if ($c.EstadoPrevio -eq 'Running' -and $arrancado) { ', en ejecución' })"
             }
             'Dns' {
                 if ($c.Automatico) { Set-DnsClientServerAddress -InterfaceIndex $c.Interfaz -ResetServerAddresses -ErrorAction Stop } else { Set-DnsClientServerAddress -InterfaceIndex $c.Interfaz -ServerAddresses @($c.Previo) -ErrorAction Stop }
@@ -91,11 +102,16 @@ foreach ($c in $cambios) {
                 }
                 Write-Output "    $($E.OK) IP del adaptador ${i}: $(if ($c.Dhcp -or -not $c.Ip) { 'automática (DHCP)' } else { "$($c.Ip)/$($c.Prefijo)" })"
             }
-            'Bcd' { & bcdedit.exe /import $c.Archivo 2>&1 | Out-Null; if ($LASTEXITCODE -ne 0) { throw "bcdedit /import código $LASTEXITCODE" }; $reinicio = $true; Write-Output "    $($E.OK) Configuración de arranque restaurada (hace falta reiniciar)." }
+            'Bcd' {
+                # La copia del BCD se guardó con ruta absoluta: si el pendrive volvió con otra letra, se busca en la propia carpeta de la sesión
+                $bcdArchivo = [string]$c.Archivo; if (-not (Test-Path -LiteralPath $bcdArchivo)) { $alt = Join-Path $sel.FullName (Split-Path $bcdArchivo -Leaf); if (Test-Path -LiteralPath $alt) { $bcdArchivo = $alt } else { throw "no se encuentra la copia del BCD ($bcdArchivo)" } }
+                & (Join-Path $env:SystemRoot 'System32\bcdedit.exe') /import $bcdArchivo 2>&1 | Out-Null; if ($LASTEXITCODE -ne 0) { throw "bcdedit /import código $LASTEXITCODE" }; $reinicio = $true; Write-Output "    $($E.OK) Configuración de arranque restaurada (hace falta reiniciar)." }
             'PageFile' {
                 $cs = Get-CimInstance Win32_ComputerSystem
                 if ($c.Automatico) { $cs.AutomaticManagedPagefile = $true; Set-CimInstance -InputObject $cs | Out-Null }
-                else { foreach ($p in @($c.Configuracion)) { $s = Get-CimInstance Win32_PageFileSetting | Where-Object { $_.Name -eq $p.Nombre }; if ($s) { $s.InitialSize = [int]$p.Inicial; $s.MaximumSize = [int]$p.Maximo; Set-CimInstance -InputObject $s | Out-Null } else { New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = $p.Nombre; InitialSize = [int]$p.Inicial; MaximumSize = [int]$p.Maximo } | Out-Null } } }
+                else {
+                    if ($cs.AutomaticManagedPagefile) { $cs.AutomaticManagedPagefile = $false; Set-CimInstance -InputObject $cs | Out-Null }   # con la administración automática activa, Windows ignora los tamaños manuales
+                    foreach ($p in @($c.Configuracion)) { $s = Get-CimInstance Win32_PageFileSetting | Where-Object { $_.Name -eq $p.Nombre }; if ($s) { $s.InitialSize = [int]$p.Inicial; $s.MaximumSize = [int]$p.Maximo; Set-CimInstance -InputObject $s | Out-Null } else { New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = $p.Nombre; InitialSize = [int]$p.Inicial; MaximumSize = [int]$p.Maximo } | Out-Null } } }
                 $reinicio = $true; Write-Output "    $($E.OK) Archivo de paginación restaurado$(if ($c.Automatico) { ' (administración automática)' }) (hace falta reiniciar)."
             }
             'NombrePC' { Rename-Computer -NewName $c.Previo -Force -ErrorAction Stop; $reinicio = $true; Write-Output "    $($E.OK) Nombre del equipo: $($c.Previo) (hace falta reiniciar)." }
@@ -108,7 +124,7 @@ foreach ($c in $cambios) {
 Write-Log "Deshacer cambios '$($j.Nombre)': $ok revertidos, $fallos con error"
 Write-Output "`n  $(if ($fallos) { $E.Aviso } else { $E.OK }) $ok revertidos, $fallos con error.$(if ($reinicio) { ' Reinicia el equipo para completar la restauración.' })"
 if (-not $fallos) {
-    try { Rename-Item -LiteralPath $sel.FullName -NewName ($sel.Name + '_DESHECHO') -ErrorAction Stop } catch { }
+    try { Rename-Item -LiteralPath $sel.FullName -NewName ($sel.Name + '_DESHECHO') -ErrorAction Stop } catch { Write-Output "  $($E.Aviso) Todo revertido, pero no se pudo marcar la sesión como deshecha ($($_.Exception.Message)): seguirá en la lista; cierra lo que tenga abierta esa carpeta." }
     return
 }
 # Con fallos la sesión sigue pendiente, solo con lo que falta: así se puede reintentar sin repetir lo ya revertido

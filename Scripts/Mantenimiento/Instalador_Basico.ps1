@@ -10,6 +10,7 @@ param([string[]]$Ids, [switch]$Todos, [Alias('SoloAnalizar')][switch]$Simular)
 
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if (-not $Simular) { Assert-Admin 'instalar programas' }   # instala en Archivos de programa y copia la licencia de WinRAR ahí
 if ($Ids) { $Ids = @($Ids | ForEach-Object { $_ -split '[,;]' } | Where-Object { $_ }) }   # admite -Ids "a,b" desde la línea de comandos
 $TiempoWinget = 900      # s máximos por instalación con winget
 $TiempoDirecto = 600     # s máximos por instalador descargado
@@ -66,10 +67,10 @@ else {
     if ($r -ne 'OK') { Exit-Kit 'Cancelado' 'Instalación cancelada.' }
 }
 if (-not $Seleccionados) { Exit-Kit 'Cancelado' 'No hay programas seleccionados.' }
-if (-not $Simular) { [void](Start-OperacionSegura 'Instalar programas') }   # punto de restauración antes de instalar
+if (-not $Simular) { Confirm-EquipoListo 'instalar programas'; [void](Start-OperacionSegura 'Instalar programas') }   # punto de restauración antes de instalar
 
 # ---------- Utilidades ----------
-$Resumen = @{ Ok = 0; Ya = 0; Fallo = 0; Detalle = New-Object Collections.Generic.List[string] }
+$Resumen = @{ Ok = 0; Ya = 0; Fallo = 0; Reinicio = 0; Detalle = New-Object Collections.Generic.List[string] }
 function Test-AppInstalada($a) { if ($a.Rutas) { foreach ($r in $a.Rutas) { if ($r -and (Test-Path -LiteralPath $r)) { return $true } } }; $false }
 $CodigosOk = @(0, 3010, 1641)
 $CodigosYa = @(-1978335189, -1978335188, -1978335212, -1978335135)   # winget: ya instalado / sin actualización aplicable
@@ -118,8 +119,8 @@ function Install-Directo($a) {
             if (-not $a.Firmante -or $firmante -notmatch $a.Firmante) { Write-Host "    $($E.Error) El instalador no está firmado por el editor esperado ($($a.Firmante)): $firmante. No se instala."; Write-Log "Firmante inesperado en $($a.Id): $firmante" 'ERROR'; return $false }
         }
         Write-Host "    $($E.Reloj) Instalando en silencio (máx. $TiempoDirecto s)…"
-        $r = if ($a.Tipo -eq 'MSI') { Invoke-Proceso 'msiexec.exe' "/i `"$tmp`" $($a.Args)" $TiempoDirecto "Instalación de $($a.Id)" } else { Invoke-Proceso $tmp $a.Args $TiempoDirecto "Instalación de $($a.Id)" }
-        return (($CodigosOk -contains $r.Codigo) -or (Test-AppInstalada $a))
+        $r = if ($a.Tipo -eq 'MSI') { Invoke-Proceso (Join-Path $env:SystemRoot 'System32\msiexec.exe') "/i `"$tmp`" $($a.Args)" $TiempoDirecto "Instalación de $($a.Id)" } else { Invoke-Proceso $tmp $a.Args $TiempoDirecto "Instalación de $($a.Id)" }
+        if (@(3010, 1641) -contains $r.Codigo) { $Resumen.Reinicio++ }`r`n        return (($CodigosOk -contains $r.Codigo) -or (Test-AppInstalada $a))
     } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
 }
 
@@ -138,16 +139,18 @@ function Install-Office2013 {
     $cfg = Join-Path $Global:NitKit.Cache 'office2013.xml'
     $xml = @('<Configuration Product="ProPlus">', '  <Display Level="none" CompletionNotice="no" SuppressModal="yes" AcceptEULA="yes" />', '  <Setting Id="SETUP_REBOOT" Value="Never" />')
     if ($clave) { $xml += "  <PIDKEY Value=`"$($clave -replace '-', '')`" />" }; $xml += '</Configuration>'
-    Set-Content -LiteralPath $cfg -Value $xml -Encoding UTF8
     if ($Simular) { Write-Output "    (simulación) se instalaría desde $origen"; return }
-    for ($i = 1; $i -le 2; $i++) {
-        Write-Output "    $($E.Reloj) Instalando desde $origen (intento $i de 2, máx. $([int]($TiempoOffice / 60)) min)…"
-        $r = Invoke-Proceso (Join-Path $origen 'setup.exe') "/config `"$cfg`"" $TiempoOffice 'Office 2013' 30
-        if ($CodigosOk -contains $r.Codigo) { Write-Output "    $($E.OK) Office 2013 instalado."; $Resumen.Ok++; $Resumen.Detalle.Add('Office 2013: instalado'); return }
-        Write-Output "    $($E.Aviso) Código $($r.Codigo). Comprobando la unidad antes de reintentar…"
-        if (-not (Wait-Kit 180)) { break }
-    }
-    Write-Output "    $($E.Error) No se pudo instalar Office 2013."; $Resumen.Fallo++; $Resumen.Detalle.Add('Office 2013: FALLÓ')
+    Set-Content -LiteralPath $cfg -Value $xml -Encoding UTF8   # lleva la clave de producto en claro: se borra siempre al terminar (el equipo es del cliente)
+    try {
+        for ($i = 1; $i -le 2; $i++) {
+            Write-Output "    $($E.Reloj) Instalando desde $origen (intento $i de 2, máx. $([int]($TiempoOffice / 60)) min)…"
+            $r = Invoke-Proceso (Join-Path $origen 'setup.exe') "/config `"$cfg`"" $TiempoOffice 'Office 2013' 30
+            if (@(3010, 1641) -contains $r.Codigo) { $Resumen.Reinicio++ }; if ($CodigosOk -contains $r.Codigo) { Write-Output "    $($E.OK) Office 2013 instalado."; $Resumen.Ok++; $Resumen.Detalle.Add('Office 2013: instalado'); return }
+            Write-Output "    $($E.Aviso) Código $($r.Codigo). Comprobando la unidad antes de reintentar…"
+            if (-not (Wait-Kit 180)) { break }
+        }
+        Write-Output "    $($E.Error) No se pudo instalar Office 2013."; $Resumen.Fallo++; $Resumen.Detalle.Add('Office 2013: FALLÓ')
+    } finally { Remove-Item -LiteralPath $cfg -Force -ErrorAction SilentlyContinue }
 }
 
 # ---------- Proceso ----------
@@ -188,7 +191,7 @@ foreach ($a in $Seleccionados) {
             if ($Simular) { Write-Output "    (simulación) winget install --id $($a.Id)"; break }
             $r = Invoke-Proceso $winget.Source "install --id $($a.Id) --exact --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity" $TiempoWinget "winget $($a.Id)" 20
             $cod = $r.Codigo; if ($cod -gt 2147483647) { $cod -= 4294967296 }
-            if ($CodigosOk -contains $cod -or (Test-AppInstalada $a)) { $ok = $true; Write-Output "    $($E.OK) Instalado con winget."; $Resumen.Ok++; $Resumen.Detalle.Add("$($a.Nombre): instalado (winget)") }
+            if (@(3010, 1641) -contains $cod) { $Resumen.Reinicio++ }; if ($CodigosOk -contains $cod -or (Test-AppInstalada $a)) { $ok = $true; Write-Output "    $($E.OK) Instalado con winget."; $Resumen.Ok++; $Resumen.Detalle.Add("$($a.Nombre): instalado (winget)") }
             elseif ($CodigosYa -contains $cod) { $ok = $true; Write-Output "    $($E.Info) Ya estaba instalado."; $Resumen.Ya++; $Resumen.Detalle.Add("$($a.Nombre): ya estaba") }
             elseif ($cod -eq -1978335215) { Write-Output "    $($E.Aviso) winget sin catálogo en este equipo."; $winget = $null; break }
             else { Write-Output "    $($E.Aviso) winget no pudo instalarlo (código $cod)$(if ($r.TiempoAgotado) { ' por tiempo agotado' })." }
@@ -202,10 +205,12 @@ foreach ($a in $Seleccionados) {
 }
 if ($Seleccionados.Id -contains 'OFFICE2013_LOCAL') { Write-Progreso ($total - 1) $total 'Instalando Microsoft Office 2013 (tarda)'; Install-Office2013 }
 Write-Progreso $total $total 'Terminado'
+if ($licencia) { Remove-Item -LiteralPath $licencia -Force -ErrorAction SilentlyContinue }   # copia de la licencia de WinRAR en la caché del PC: no se deja en el equipo del cliente
 
 Write-Output ""
 Write-Output "========================================================"
 Write-Output "  $($E.Disco) RESUMEN: $($Resumen.Ok) instalados | $($Resumen.Ya) ya estaban | $($Resumen.Fallo) fallidos"
 Write-Output "========================================================"
+if ($Resumen.Reinicio) { Write-Output "  $($E.Aviso) $($Resumen.Reinicio) programa(s) piden reiniciar el equipo para terminar la instalación." }
 Write-Log "Instalador terminado: $($Resumen.Ok) instalados, $($Resumen.Ya) ya estaban, $($Resumen.Fallo) fallidos. $($Resumen.Detalle -join ' | ')"
 if ($Resumen.Fallo -gt 0) { exit 1 }

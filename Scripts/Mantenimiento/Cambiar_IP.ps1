@@ -110,7 +110,7 @@ if ($SoloAnalizar) {
 }
 
 # ---------- perfiles ----------
-$ficheroPerfiles = Join-Path (Get-KitDatos) 'Perfiles_IP.json'
+$ficheroPerfiles = Join-Path (Get-BaseTrabajo) 'Perfiles_IP.json'   # pack público: en la caché del PC, no en el pendrive
 # En 5.1 ConvertFrom-Json entrega el array entero como UN objeto: se guarda en una variable y se vuelve a abrir con @()
 function Get-Perfiles { try { $j = Get-Content -LiteralPath $ficheroPerfiles -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json; @($j | Where-Object { $_ }) } catch { @() } }
 function Save-Perfiles($l) { try { ConvertTo-Json -InputObject @($l) -Depth 3 | Set-Content -LiteralPath $ficheroPerfiles -Encoding UTF8 } catch { Write-Log "Perfiles_IP: $($_.Exception.Message)" 'AVISO' } }
@@ -184,8 +184,15 @@ function Update-Datos {
     $bDhcp.Enabled = -not $e.Dhcp; $bRel.Enabled = $e.Dhcp; $bRen.Enabled = $e.Dhcp
 }
 function Update-Perfiles { $lv.Items.Clear(); foreach ($p in (Get-Perfiles)) { $it = New-Object Windows.Forms.ListViewItem([string]$p.Nombre); foreach ($k in 'Ip', 'Mascara', 'Puerta', 'Dns', 'Dns2') { [void]$it.SubItems.Add([string]$p.$k) }; $it.Tag = $p; [void]$lv.Items.Add($it) } }
-function Invoke-Accion([string]$titulo, [scriptblock]$cuerpo) {
+function Get-SesionRemota {
+    if ($env:SESSIONNAME -like 'RDP-*') { return 'sesión de Escritorio remoto' }
+    $p = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match '^(AnyDesk|TeamViewer|TeamViewer_Service|rustdesk|ScreenConnect\.ClientService|SunloginClient|ConnectWiseControl\.Client)$' } | Select-Object -ExpandProperty ProcessName -Unique)
+    if ($p.Count) { "programa de acceso remoto activo: $($p -join ', ')" } else { $null }
+}function Invoke-Accion([string]$titulo, [scriptblock]$cuerpo) {
     if (-not $esAdmin) { [void][Windows.Forms.MessageBox]::Show($f, 'Hace falta abrir el kit como administrador para cambiar la red.', $titulo, 'OK', 'Warning'); return }
+    # Cambiar la IP o el DHCP puede cortar la conexión con la que el técnico está trabajando (RDP o programas de acceso remoto)
+    $remoto = Get-SesionRemota
+    if ($remoto -and $titulo -ne 'Activar adaptador' -and -not (Get-Pregunta "Parece que estás trabajando en remoto ($remoto). Cambiar la red puede cortar la conexión y dejarte sin acceso a este equipo.`n`n¿Continuar con «$titulo»?")) { return }
     $f.Cursor = 'WaitCursor'
     try { & $cuerpo; $msg.Text = "${titulo}: hecho."; Write-Log "Cambiar_IP: $titulo" }
     catch { $msg.Text = "${titulo}: falló ($($_.Exception.Message))"; Write-Log "Cambiar_IP ${titulo}: $($_.Exception.Message)" 'ERROR'; [void][Windows.Forms.MessageBox]::Show($f, $_.Exception.Message, $titulo, 'OK', 'Error') }

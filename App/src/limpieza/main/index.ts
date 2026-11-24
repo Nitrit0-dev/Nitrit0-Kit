@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session } from 'electron'
 import { pathToFileURL } from 'node:url'
-import { dirname, join, relative, resolve } from 'node:path'
-import { existsSync, readFileSync } from 'node:fs'
+import { basename, dirname, join, relative, resolve } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawn, type ChildProcess } from 'node:child_process'
 import os from 'node:os'
 import { createHash } from 'node:crypto'
@@ -39,6 +39,23 @@ const colores = { oscuro: { color: '#0F0F10', symbolColor: '#EDEDED' }, claro: {
 // ---------- Lista blanca: el motor y Comun.ps1 deben figurar en Datos\Integridad.json con su huella ----------
 let manifiesto: Map<string, string> | null = null
 function motivoBloqueo(ruta: string): string | null {
+  const m = comprobarHuella(ruta)
+  if (!m) return null
+  manifiesto = null   // regenerar la integridad con la app abierta no debe obligar a reiniciarla: se relee una vez antes de bloquear
+  return comprobarHuella(ruta)
+}
+/** Ficheros .ps1 que un script ya verificado carga con Join-Path $PSScriptRoot '…' (el motor usa Desinstalar_Total y Limpiar_Registro_Huerfano): también deben figurar en la integridad y coincidir. */
+function dependencias(ruta: string, vistos = new Map<string, string>()): string[] {
+  try {
+    for (const m of readFileSync(ruta, 'utf8').matchAll(/Join-Path \$PSScriptRoot '([^']+\.ps1)'/g)) {
+      const d = resolve(dirname(ruta), m[1])
+      if (vistos.has(d.toLowerCase()) || vistos.size >= 30 || !existsSync(d)) continue
+      vistos.set(d.toLowerCase(), d); dependencias(d, vistos)
+    }
+  } catch { /* si no se lee, ya lo bloquea la comprobación del propio script */ }
+  return [...vistos.values()]
+}
+function comprobarHuella(ruta: string): string | null {
   try {
     if (!manifiesto) {
       const lista = JSON.parse(quitarBom(readFileSync(join(datos, 'Integridad.json'), 'utf8'))) as { R: string; H?: string }[]
@@ -55,6 +72,10 @@ const q = (s: string) => `'${s.replace(/['‘’‚‛]/g, (c) => c + c)}'`   //
 const ID_CATEGORIA = /^[a-z0-9-]{1,40}$/
 let ventana: BrowserWindow
 let marcha: ChildProcess | null = null
+let opActual = ''
+let cancelado = false
+// Solo lo que mira y no borra se puede cortar a la fuerza sin riesgo; limpiar, desinstalar o tocar el registro no.
+const SE_PUEDE_CORTAR = ['Analizar', 'ProgramasListar', 'InicioListar', 'RegistroAnalizar']
 
 /** Acciones y parámetros permitidos: lo que llega de la interfaz se valida aquí, no se confía en ello. */
 function argumentos(op: string, p: { ids?: unknown; tipo?: unknown; id?: unknown; activar?: unknown; nombres?: unknown; modo?: unknown }): string | null {
@@ -87,37 +108,42 @@ function ejecutarMotor(op: string, params: Parameters<typeof argumentos>[1]): Pr
   const args = argumentos(op, params)
   if (!args) return Promise.resolve({ ok: false, mensaje: 'Petición no válida.', codigo: null })
   const comun = join(raiz, 'Scripts', 'Comun.ps1'), motor = join(raiz, 'Scripts', 'Limpieza_Motor.ps1')
-  const bloqueo = motivoBloqueo(comun) ? `Comun.ps1 ${motivoBloqueo(comun)}` : motivoBloqueo(motor) ? `Limpieza_Motor.ps1 ${motivoBloqueo(motor)}` : null
+  let bloqueo: string | null = null
+  for (const r of [comun, motor, ...dependencias(motor)]) { const m = motivoBloqueo(r); if (m) { bloqueo = `${basename(r)} ${m}`; break } }
   if (bloqueo) return Promise.resolve({ ok: false, mensaje: `No se ejecuta: ${bloqueo}. Si has cambiado el kit, ejecuta Regenerar_Integridad.ps1.`, codigo: null })
   // La orden va en el propio -Command: no se escribe ningún .ps1 temporal que se pueda cambiar antes de correr como administrador
   const orden = `try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false) } catch { }; $env:NIT_EJEC='1'; . ${q(comun)}; Initialize-Kit ${q(raiz)}; $m = Test-ScriptAutorizado ${q(motor)}; if ($m) { Write-Output ('{"evento":"error","mensaje":"No se ejecuta: ' + $m + '"}'); exit 1 }; $global:LASTEXITCODE = 0; & ${q(motor)} ${args}; exit $LASTEXITCODE`
   return new Promise((fin) => {
-    const proc = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-Command', orden.replace(/"/g, '\\"')], { cwd: raiz, env: { ...entornoLimpio(), NIT_RAIZ: raiz }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments: false })
-    marcha = proc
+    const proc = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-Command', orden], { cwd: raiz, env: { ...entornoLimpio(), NIT_RAIZ: raiz }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments: false })
+    marcha = proc; opActual = op; cancelado = false
     let resto = ''
     // Un motor colgado (un desinstalador esperando algo) no puede dejar la app bloqueada para siempre: a los 60 min se cierra su árbol
     let acabado = false
     let reloj: NodeJS.Timeout
-    const acabar = (r: { ok: boolean; mensaje: string; codigo: number | null }) => { if (acabado) return; acabado = true; clearTimeout(reloj); marcha = null; fin(r) }
+    const acabar = (r: { ok: boolean; mensaje: string; codigo: number | null }) => { if (acabado) return; acabado = true; clearTimeout(reloj); marcha = null; proc.stdout.destroy(); proc.stderr.destroy(); fin(r) }
     reloj = setTimeout(() => { matarArbol(proc.pid); acabar({ ok: false, mensaje: 'El motor tardó más de 60 minutos y se ha cerrado para no bloquear la app.', codigo: null }) }, 60 * 60 * 1000)
     const enviar = (v: Record<string, unknown>) => { if (!ventana.isDestroyed()) ventana.webContents.send('motor:evento', v) }
+    // Los iconos llegan de forma asíncrona: la operación no se da por terminada hasta que sus eventos hayan salido (si no, una recarga inmediata recibiría elementos de la anterior)
+    const iconos: Promise<void>[] = []
+    const alAcabar = (r: { ok: boolean; mensaje: string; codigo: number | null }) => { void Promise.race([Promise.allSettled(iconos), new Promise((ok) => setTimeout(ok, 3000))]).then(() => acabar(r)) }
     const linea = (t: string) => {
+      if (acabado) return   // un hijo que heredó las tuberías puede seguir escribiendo tras darse la operación por terminada: no se cuela en la siguiente
       const s = t.trim(); if (!s.startsWith('{')) return
       let v: Record<string, unknown>
       try { v = { op, ...JSON.parse(s) } } catch { return }   // línea que no es JSON
       // Programas de inicio: el icono real del programa (o del acceso directo), sacado aquí porque solo el proceso principal puede pedírselo a Windows
       const ruta = op === 'InicioListar' && v.evento === 'inicio' && typeof v.orden === 'string' ? rutaDeOrden(v.orden) : null
-      if (ruta) void app.getFileIcon(ruta, { size: 'normal' }).then((i) => enviar({ ...v, icono: i.toDataURL() })).catch(() => enviar(v))
+      if (ruta) iconos.push(app.getFileIcon(ruta, { size: 'normal' }).then((i) => enviar({ ...v, icono: i.toDataURL() })).catch(() => enviar(v)))
       else enviar(v)
     }
     proc.stdout.setEncoding('utf8').on('data', (d: string) => { resto += d; const l = resto.split(/\r?\n/); resto = l.pop() ?? ''; l.forEach(linea) })
     // stderr va en tubería: si nadie lo lee, el hijo se bloquea al llenar el búfer (64 KB) y la app se queda con «Ya hay una operación en marcha»
     proc.stderr.setEncoding('utf8').on('data', () => { /* avisos de PowerShell: se drenan y se descartan */ })
-    const resultado = (codigo: number | null) => ({ ok: codigo === 0, mensaje: codigo === 0 ? '' : `El motor terminó con código ${codigo}.`, codigo })
+    const resultado = (codigo: number | null): { ok: boolean; mensaje: string; codigo: number | null } => cancelado ? { ok: false, mensaje: 'Cancelado.', codigo: null } : ({ ok: codigo === 0, mensaje: codigo === 0 ? '' : `El motor terminó con código ${codigo}.`, codigo })
     proc.on('error', (e) => acabar({ ok: false, mensaje: `No se pudo lanzar PowerShell: ${e.message}`, codigo: null }))
-    proc.on('close', (codigo) => { if (resto) linea(resto); acabar(resultado(codigo)) })
+    proc.on('close', (codigo) => { if (resto) linea(resto); alAcabar(resultado(codigo)) })
     // Si un desinstalador hereda las tuberías, 'close' puede no llegar: con el proceso ya muerto se cierra tras un margen
-    proc.once('exit', (codigo) => { setTimeout(() => acabar(resultado(codigo)), 1500) })
+    proc.once('exit', (codigo) => { setTimeout(() => alAcabar(resultado(codigo)), 1500) })
   })
 }
 
@@ -151,6 +177,14 @@ function crearVentana() {
   if (!dev) Menu.setApplicationMenu(null)
   if (dev && process.env.ELECTRON_RENDERER_URL) void ventana.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void ventana.loadFile(join(__dirname, '../renderer/index.html'))
+  // Solo desarrollo (como en Nitrit0): NITRIT0_CAPTURA=<png> guarda la ventana y sale; NITRIT0_CLIC=<selector> [ >> otro] pulsa antes de capturar
+  const captura = dev ? process.env.NITRIT0_CAPTURA : undefined
+  if (captura) {
+    ventana.webContents.once('did-finish-load', () => setTimeout(async () => {
+      try { for (const sel of (process.env.NITRIT0_CLIC ?? '').split(' >> ').filter(Boolean)) { await ventana.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(sel)})?.click()`); await new Promise((ok) => setTimeout(ok, 3000)) } } catch { /* sin clic */ }
+      writeFileSync(captura, (await ventana.webContents.capturePage()).toPNG()); app.quit()
+    }, Number(process.env.NITRIT0_ESPERA ?? 6) * 1000))
+  }
 }
 
 /** Endurecimiento (guía de seguridad de Electron): solo se atiende al marco principal de la ventana propia (ni subventanas ni iframes) y se deniega todo permiso del navegador salvo copiar al portapapeles. */
@@ -165,8 +199,9 @@ else {
   app.whenReady().then(() => {
     cerrarPermisos()
     handle('motor', (_e, op: string, params: Parameters<typeof argumentos>[1]) => ejecutarMotor(op, params ?? {}))
-    handle('estado', () => ({ tema: modoTema(), kit: raiz, publico: leerJson<{ OcultarPeligro?: boolean }>(join(datos, 'Ajustes.json'), {}).OcultarPeligro === true }))
+    handle('estado', () => ({ tema: modoTema(), kit: raiz, publico: leerJson<{ OcultarPeligro?: boolean }>(join(datos, 'Ajustes.json'), { OcultarPeligro: true }).OcultarPeligro === true }))
     handle('cerrar', () => { matarArbol(marcha?.pid); app.exit(0) })
+    handle('cancelarAnalisis', () => { if (!marcha || !SE_PUEDE_CORTAR.includes(opActual)) return false; cancelado = true; matarArbol(marcha.pid); return true })
     crearVentana()
   })
   app.on('window-all-closed', () => app.quit())

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+﻿import { contextBridge, ipcRenderer } from 'electron'
 
 const suscribir = <T>(canal: string, cb: (v: T) => void) => {
   const f = (_e: unknown, v: T) => cb(v)
@@ -25,9 +25,14 @@ const api = {
   tema: (t: 'oscuro' | 'claro' | 'sistema') => ipcRenderer.invoke('tema', t),
   favoritos: (lista: string[]) => ipcRenderer.invoke('favoritos', lista),
   lanzar: (id: string) => ipcRenderer.invoke('lanzar', id),
+  versionWindows: () => ipcRenderer.invoke('versionWindows') as Promise<{ estado: 'al-dia' | 'hay-nueva' | 'error'; titulo?: string }>,
+  historialCambios: () => ipcRenderer.invoke('historialCambios') as Promise<{ id: string; nombre: string; fecha: string; cambios: number; deshecho: boolean }[]>,
+  deshacerCambio: (id: string) => ipcRenderer.invoke('deshacerCambio', id) as Promise<{ ok: boolean; mensaje: string }>,
+  abrirAntivirus: () => ipcRenderer.invoke('abrirAntivirus') as Promise<{ ok: boolean; mensaje: string }>,
   pruebaEntrar: () => ipcRenderer.invoke('pruebaEntrar'),
   pruebaSalir: () => ipcRenderer.invoke('pruebaSalir'),
   mediaEstado: (tipo: 'camera' | 'microphone') => ipcRenderer.invoke('mediaEstado', tipo) as Promise<string>,
+  donar: () => ipcRenderer.invoke('donar') as Promise<void>,
   ajustesPrivacidad: (tipo: 'camera' | 'microphone') => ipcRenderer.invoke('ajustesPrivacidad', tipo) as Promise<void>,
   pruebaUrl: (id: string) => ipcRenderer.invoke('pruebaUrl', id) as Promise<{ ok: boolean; titulo?: string; url?: string; mensaje: string }>,
   diagnostico: (opc: { modo: 'Rapido' | 'Completo'; ficha: Record<string, string> }) => ipcRenderer.invoke('diagnostico', opc),
@@ -35,6 +40,9 @@ const api = {
   equilibrio: (perfil: string) => ipcRenderer.invoke('equilibrio', perfil),
   revisionAuto: (opc: { actualizar: boolean; antivirus: boolean; cliente: string; enfoque: string }) => ipcRenderer.invoke('revisionAuto', opc),
   guardarUltima: (u: unknown) => ipcRenderer.invoke('guardarUltima', u),
+  informePdf: (ruta: string) => ipcRenderer.invoke('informePdf', ruta) as Promise<{ ok: boolean; mensaje: string }>,
+  criaturaGuardar: (equipo: string, texto: string) => ipcRenderer.invoke('criaturaGuardar', equipo, texto) as Promise<void>,
+  criaturaLeer: (equipo: string) => ipcRenderer.invoke('criaturaLeer', equipo) as Promise<string | null>,
   autoConfirmar: (ids: string[]) => ipcRenderer.invoke('autoConfirmar', ids),
   combo: (opc: { pasos: string[]; cliente: string }) => ipcRenderer.invoke('combo', opc),
   modo: (m: 'sencillo' | 'tecnico') => ipcRenderer.invoke('modo', m),

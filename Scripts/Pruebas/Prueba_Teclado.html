@@ -7,9 +7,9 @@
 <style>
   :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #10b981; --warn: #ef4444; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; user-select: none; }
-  .header { display: flex; justify-content: space-between; align-items: center; max-width: 1180px; margin: 0 auto 18px; background: var(--card); padding: 16px 24px; border-radius: 12px; border: 1px solid #334155; }
+  .header { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; max-width: 1180px; margin: 0 auto 18px; background: var(--card); padding: 16px 24px; border-radius: 12px; border: 1px solid #334155; }
   .header h1 { margin: 0; font-size: 20px; color: var(--accent); }
-  .stats { display: flex; gap: 18px; font-size: 14px; }
+  .stats { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; font-size: 14px; }
   .stat-box { background: #020617; padding: 8px 14px; border-radius: 8px; border: 1px solid #334155; }
   .stat-box b { color: var(--accent); }
   .kb-container { max-width: 1180px; margin: 0 auto; background: var(--card); padding: 22px; border-radius: 12px; border: 1px solid #334155; }
@@ -21,6 +21,7 @@
   .w-15 { min-width: 68px; } .w-20 { min-width: 90px; } .w-25 { min-width: 112px; } .w-space { flex: 1; min-width: 260px; }
   .btn { background: var(--accent); color: #020617; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
   .log-panel { max-width: 1180px; margin: 18px auto 0; background: var(--card); padding: 16px 24px; border-radius: 12px; border: 1px solid #334155; font-size: 13px; }
+  .key.oculto { display: none; }
 </style>
 </head>
 <body>
@@ -33,6 +34,7 @@
     <div class="stat-box">Teclas probadas: <b id="cntTested">0</b></div>
     <div class="stat-box">Simultáneas (NKRO): <b id="cntNkro">0</b> (Máx: <b id="maxNkro">0</b>)</div>
     <div class="stat-box">Rebotes (Chatter): <b id="cntChatter" style="color:#ef4444;">0</b></div>
+    <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;">Teclado <select id="tipoTeclado" onchange="aplicarTipo()" style="background:#020617;color:var(--text);border:1px solid #334155;border-radius:6px;padding:6px 8px;"><option value="completo">Completo (con numérico)</option><option value="sin-num">Sin teclado numérico</option></select></label>
     <button class="btn" onclick="resetBoard()">Reiniciar</button>
   </div>
 </div>
@@ -88,6 +90,14 @@
 <div class="log-panel" id="lastKeyInfo">Esperando pulsación de tecla...</div>
 
 <script>
+// Teclado completo o sin parte numérica: las teclas del numérico se ocultan y no cuentan; se recuerda la elección
+function aplicarTipo() {
+  const sinNum = document.getElementById('tipoTeclado').value === 'sin-num';
+  document.querySelectorAll('.key').forEach(k => { const c = k.dataset.code || ''; if (/^Numpad|^NumLock$/.test(c)) k.classList.toggle('oculto', sinNum); });
+  try { localStorage.setItem('nit_teclado_tipo', sinNum ? 'sin-num' : 'completo'); } catch (e) { }
+  if (typeof ajustarAncho === 'function') ajustarAncho();
+}
+(function () { try { const g = localStorage.getItem('nit_teclado_tipo'); if (g === 'sin-num') document.getElementById('tipoTeclado').value = 'sin-num'; } catch (e) { } aplicarTipo(); })();
 const pressedNow = new Set();
 const testedSet = new Set();
 const lastUpTime = {};
@@ -144,6 +154,11 @@ function resetBoard() {
   document.querySelectorAll('.key').forEach(k => k.classList.remove('active', 'tested', 'chatter'));
   updateCounters();
 }
+</script>
+<script>
+// Si la ventana es más estrecha que el teclado, se reduce para que quepa entero (antes se cortaba el teclado numérico)
+function ajustarAncho() { const c = document.querySelector('.kb-container'); if (!c) return; c.style.zoom = 1; const w = c.scrollWidth, a = document.documentElement.clientWidth - 24; c.style.zoom = w > a && a > 200 ? (a / w) : 1 }
+window.addEventListener('resize', ajustarAncho); window.addEventListener('load', ajustarAncho); setTimeout(ajustarAncho, 100)
 </script>
 </body>
 </html>

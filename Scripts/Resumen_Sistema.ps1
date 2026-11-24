@@ -11,6 +11,7 @@ $discos = foreach ($d in Get-PhysicalDisk) {
 $volumenes = foreach ($v in Get-Volume | Where-Object { $_.DriveLetter -and $_.DriveType -eq 'Fixed' -and $_.Size -gt 0 }) {   # una unidad bloqueada o sin formato (tamaño 0) no se puede medir
     [pscustomobject]@{ letra = [string]$v.DriveLetter; etiqueta = $v.FileSystemLabel; totalGb = [math]::Round($v.Size / 1GB, 1); libreGb = [math]::Round($v.SizeRemaining / 1GB, 1) }
 }
+$cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $bat = Get-CimInstance Win32_Battery | Select-Object -First 1
 $placa = Get-CimInstance Win32_BaseBoard | Select-Object -First 1
 $gpus = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -and $_.Name -notmatch 'Basic|Remote|Virtual' } | ForEach-Object { [pscustomobject]@{ nombre = [string]$_.Name; driver = [string]$_.DriverVersion } })
@@ -20,6 +21,8 @@ $gpus = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -and $_
     cpu = ("$($cpu.Name)").Trim(); nucleos = $cpu.NumberOfCores; hilos = $cpu.NumberOfLogicalProcessors
     ramGb = [math]::Round($cs.TotalPhysicalMemory / 1GB)
     windows = $os.Caption; version = $os.Version
+    edicion = [string]$(if ($cv.DisplayVersion) { $cv.DisplayVersion } else { $cv.ReleaseId })
+    compilacion = $(if ($cv.CurrentBuildNumber) { "$($cv.CurrentBuildNumber).$($cv.UBR)" } else { '' })
     arranque = $(if ($os.LastBootUpTime) { $os.LastBootUpTime.ToString('s') } else { '' })
     bios = [string](@($bios.SMBIOSBIOSVersion)[0])
     biosFecha = $(if ($bios.ReleaseDate) { $bios.ReleaseDate.ToString('yyyy-MM-dd') } else { '' })

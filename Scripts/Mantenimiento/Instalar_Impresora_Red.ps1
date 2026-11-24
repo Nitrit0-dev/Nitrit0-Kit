@@ -8,6 +8,7 @@
 param([string]$IP, [string]$Nombre, [string]$Driver, [Alias('Simular')][switch]$SoloAnalizar)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if (-not $SoloAnalizar) { Assert-Admin 'instalar la impresora' }
 
 Write-Output "========================================================"
 Write-Output "  $($E.Lupa) INSTALAR IMPRESORA DE RED POR IP"
@@ -23,7 +24,7 @@ if ((Get-Service Spooler -ErrorAction SilentlyContinue).Status -ne 'Running') {
 $drivers = @(Get-PrinterDriver -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'PDF|XPS|Fax|OneNote|Remote Desktop|Send To' } | Select-Object -ExpandProperty Name | Sort-Object -Unique)
 if (-not $drivers.Count) { Write-Output "  $($E.Error) No hay ningún controlador de impresora utilizable en este equipo. Instala primero el del fabricante."; exit 1 }
 # Preferencia: el universal del fabricante si está; si no, el genérico IPP de Windows (sirve para casi todas las impresoras modernas)
-$preferidos = 'Universal', 'PCL ?6', 'PCL6', 'UFR', 'Microsoft IPP Class Driver', 'PostScript|PS', 'PCL'
+$preferidos = 'Universal', 'PCL ?6', 'PCL6', 'UFR', 'Microsoft IPP Class Driver', 'PostScript|\bPS\b', 'PCL'
 $recomendado = $null; foreach ($p in $preferidos) { $recomendado = $drivers | Where-Object { $_ -match $p } | Select-Object -First 1; if ($recomendado) { break } }
 if (-not $recomendado) { $recomendado = $drivers[0] }
 

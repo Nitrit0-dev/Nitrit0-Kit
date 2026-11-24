@@ -183,6 +183,9 @@ catch { Write-Output "  $($E.Aviso) No se creó punto de restauración (Windows 
 $sesion = (Get-Date -Format 'yyyyMMdd_HHmmss') + '_Registro'
 $q = Join-Path (Join-Path $env:ProgramData $RaizCuarentena) $sesion
 New-Item -ItemType Directory -Force (Join-Path $q 'Registro') | Out-Null
+# Igual que la cuarentena de Desinstalar_Total: la restauración corre como administrador, así que la carpeta solo la tocan Administradores y SYSTEM, y lleva huellas de lo que se restaurará
+& icacls.exe $q /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Log "Limpiar_Registro_Huerfano: no se pudieron restringir los permisos de $q (icacls $LASTEXITCODE)" }
 $ok = 0; $fallos = 0; $n = 0
 $exportadas = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
 foreach ($x in $elegidos) {
@@ -204,13 +207,15 @@ foreach ($x in $elegidos) {
             }
             'Tarea' {
                 $tn = Split-Path $x.Ruta -Leaf; $path = $x.Ruta.Substring(0, $x.Ruta.Length - $tn.Length)
-                Export-ScheduledTask -TaskName $tn -TaskPath $path | Out-File ("$q\Registro\{0:D3}_tarea.xml" -f $n) -Encoding UTF8 -ErrorAction Stop
+                Export-ScheduledTask -TaskName $tn -TaskPath $path -ErrorAction Stop | Out-File ("$q\Registro\{0:D3}_tarea.xml" -f $n) -Encoding UTF8 -ErrorAction Stop
                 Unregister-ScheduledTask -TaskName $tn -TaskPath $path -Confirm:$false -ErrorAction Stop
             }
         }
         $ok++; Write-Output "    $($E.OK) $($x.Grupo): $($x.Detalle)"
     } catch { $fallos++; Write-Output "    $($E.Error) $($x.Grupo): $($x.Detalle) -> $($_.Exception.Message)" }
 }
+$huellas = @(Get-ChildItem -LiteralPath $q -Recurse -File -Include '*.reg', '*_tarea.xml' -ErrorAction SilentlyContinue | ForEach-Object { '{0}|{1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash, $_.FullName.Substring($q.Length + 1) })
+if ($huellas.Count) { Set-Content -LiteralPath (Join-Path $q 'manifiesto.txt') -Value $huellas -Encoding UTF8 }
 Write-Log "Limpiar_Registro_Huerfano: sesión $sesion - $ok limpiadas, $fallos con error"
 Write-Output "`n  $($E.OK) Limpiadas $ok entradas ($fallos con error). Copia en: $q"
 Write-Output "  $($E.Info) Para deshacerlo: «Desinstalador de apps» > restaurar desde la cuarentena (elige la sesión $sesion)."

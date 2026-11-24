@@ -20,7 +20,7 @@ export default function Pagina({ titulo, subtitulo, grupos, elementos, favoritas
 
   const propios = elementos.filter((e) => e.pagina === titulo)
   const visibles = useMemo(() => {
-    const base = buscando ? elementos : propios
+    const base = buscando || filtro === 'Favoritas' ? elementos : propios   // las favoritas son de todo el kit, no solo de esta página
     return base.filter((e) => {
       if (buscando) return normalizar(`${e.titulo} ${e.descripcion} ${e.categoria}`).includes(q)
       if (filtro === 'Favoritas') return favoritas.includes(e.titulo)
@@ -37,7 +37,7 @@ export default function Pagina({ titulo, subtitulo, grupos, elementos, favoritas
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibles, buscando])
 
-  const cuenta = (g: string) => (g === 'Todas' ? propios.length : g === 'Favoritas' ? propios.filter((e) => favoritas.includes(e.titulo)).length : propios.filter((e) => e.grupo === g).length)
+  const cuenta = (g: string) => (g === 'Todas' ? propios.length : g === 'Favoritas' ? elementos.filter((e) => favoritas.includes(e.titulo)).length : propios.filter((e) => e.grupo === g).length)
 
   return (
     <div className="pagina">

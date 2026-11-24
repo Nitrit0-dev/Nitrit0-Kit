@@ -13,7 +13,7 @@
   --radio: 10px; --radio-chico: 6px;
   --fuente: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', Consolas, monospace;
-  --barra-titulo: 40px; --ancho-lateral: 224px; --pie: 32px;
+  --barra-titulo: 40px; --ancho-lateral: 256px; --pie: 32px;
   --ease: cubic-bezier(.22, 1, .36, 1);
   color-scheme: dark;
 }

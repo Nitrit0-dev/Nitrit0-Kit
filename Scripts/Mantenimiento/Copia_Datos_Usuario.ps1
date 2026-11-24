@@ -18,6 +18,7 @@ if (-not $Destino) {
     $Destino = $fb.SelectedPath
 }
 $Destino = Join-Path $Destino ("Copia_{0}_{1}_{2}" -f $env:COMPUTERNAME, $Usuario, (Get-Date -Format 'yyyyMMdd'))
+if (([IO.Path]::GetFullPath($Destino) + '\').StartsWith(([IO.Path]::GetFullPath($perfil)).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { Exit-Kit 'Error' 'El destino está dentro del perfil que se copia: la copia se copiaría a sí misma hasta llenar el disco. Elige otra unidad o una carpeta fuera de C:\Users\<usuario>.' }
 New-Item -ItemType Directory -Force $Destino | Out-Null
 $carpetas = @('Desktop', 'Documents', 'Pictures', 'Videos', 'Music', 'Downloads', 'Favorites')
 $extra = @{ 'Chrome_Marcadores' = "AppData\Local\Google\Chrome\User Data\Default"; 'Edge_Marcadores' = "AppData\Local\Microsoft\Edge\User Data\Default" }

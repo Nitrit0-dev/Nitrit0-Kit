@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Confirmar, Medidor, PageHeader } from '../../../renderer/src/componentes/Basicos'
 
-export interface Categoria { id: string; grupo: string; nombre: string; ayuda: string; marcada: boolean; riesgo: string; bytes: number; archivos: number; admin: boolean }
+export interface Categoria { id: string; grupo: string; nombre: string; ayuda: string; marcada: boolean; riesgo: string; bytes: number; archivos: number; admin: boolean; abiertos?: string[] }
+const NOMBRE_PROC: Record<string, string> = { chrome: 'Chrome', msedge: 'Edge', firefox: 'Firefox', brave: 'Brave', vivaldi: 'Vivaldi', opera: 'Opera' }
 export interface Resultado { bytes: number; enUso: number; error?: string }
 
 export const tam = (b: number) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b >= 1048576 ? `${Math.round(b / 1048576)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`)
 const GRUPOS = ['Windows', 'Navegadores', 'Aplicaciones']
 
-export default function Limpiador({ cats, sel, alSel, fase, resultados, liberado, avisos, admin, ocupado, alAnalizar, alLimpiar }: {
+export default function Limpiador({ cats, sel, alSel, fase, resultados, liberado, avisos, admin, ocupado, alAnalizar, alLimpiar, alCancelar }: {
   cats: Categoria[]; sel: Set<string>; alSel: (s: Set<string>) => void; fase: 'analizando' | 'listo' | 'limpiando' | 'hecho'; resultados: Record<string, Resultado>
-  liberado: number | null; avisos: string[]; admin: boolean; ocupado: boolean; alAnalizar: () => void; alLimpiar: () => void
+  liberado: number | null; avisos: string[]; admin: boolean; ocupado: boolean; alAnalizar: () => void; alLimpiar: () => void; alCancelar: () => void
 }) {
   const [confirmar, setConfirmar] = useState(false)
   // Sin administrador, las categorías de Windows no se pueden borrar: se ven (con su tamaño) pero no se marcan
@@ -21,18 +22,21 @@ export default function Limpiador({ cats, sel, alSel, fase, resultados, liberado
   const quitarTodas = () => alSel(new Set())
   const mostrarResultado = fase === 'limpiando' || fase === 'hecho'
   const hayMedio = elegidas.some((c) => c.riesgo === 'medio')
+  // Navegadores que están abiertos justo ahora y que se cerrarán (el que no responda en 8 s se fuerza: se pierde lo que haya sin guardar)
+  const abiertos = [...new Set(elegidas.flatMap((c) => c.abiertos ?? []))].map((p) => NOMBRE_PROC[p] ?? p)
 
   return (
     <div className="pagina">
       <PageHeader titulo="Limpiador" subtitulo="Marca lo que quieres borrar. Antes de tocar nada se calcula cuánto se libera; tus documentos, fotos y descargas no se tocan."
         acciones={<>
+          {fase === 'analizando' && <button className="boton" onClick={alCancelar}>Cancelar análisis</button>}
           <button className="boton" disabled={ocupado} onClick={alAnalizar}>{fase === 'analizando' ? 'Analizando…' : 'Analizar de nuevo'}</button>
           <button className="boton principal-b" disabled={ocupado || !elegidas.length} onClick={() => setConfirmar(true)}>{fase === 'limpiando' ? 'Limpiando…' : 'Limpiar lo marcado'}</button>
         </>} />
 
       <div className="resumen-barra" role="status">
-        {fase === 'analizando' && <><span className="grande">Analizando…</span><span className="sub">Calculando cuánto ocupa cada cosa</span><div style={{ flexBasis: '100%' }}><Medidor valor={0} etiqueta="Analizando el equipo" rol="progressbar" indeterminado /></div></>}
-        {fase === 'limpiando' && <><span className="grande">Limpiando…</span><span className="sub">No cierres la ventana hasta que termine</span><div style={{ flexBasis: '100%' }}><Medidor valor={0} etiqueta="Limpiando" rol="progressbar" indeterminado /></div></>}
+        {fase === 'analizando' && <><span className="grande">Analizando…</span><span className="sub">Calculando cuánto ocupa cada cosa</span><div className="linea-completa"><Medidor valor={0} etiqueta="Analizando el equipo" rol="progressbar" indeterminado /></div></>}
+        {fase === 'limpiando' && <><span className="grande">Limpiando…</span><span className="sub">No cierres la ventana hasta que termine</span><div className="linea-completa"><Medidor valor={0} etiqueta="Limpiando" rol="progressbar" indeterminado /></div></>}
         {fase === 'hecho' && <><span className="grande num">{liberado === null ? '' : tam(liberado)}</span><span className="sub">{liberado === null ? 'La limpieza no terminó.' : 'liberados en el disco del sistema'}</span></>}
         {fase === 'listo' && <><span className="grande num">{tam(total)}</span><span className="sub">se liberarían con lo marcado ({elegidas.length} de {cats.length} categorías)</span></>}
         <span className="hueco" />
@@ -74,8 +78,8 @@ export default function Limpiador({ cats, sel, alSel, fase, resultados, liberado
         )
       })}
 
-      <Confirmar abierto={confirmar} titulo="Limpiar lo marcado" texto={`Se borrarán unos ${tam(total)} de ${elegidas.length} categoría(s). Los navegadores abiertos se cerrarán (con aviso). No se puede deshacer.`}
-        detalle={hayMedio ? 'Has marcado algo que se pierde para siempre (papelera o volcados de memoria).' : null} textoOk="Sí, limpiar" textoNo="Cancelar"
+      <Confirmar abierto={confirmar} titulo="Limpiar lo marcado" texto={`Se borrarán unos ${tam(total)} de ${elegidas.length} categoría(s). No se puede deshacer.${abiertos.length ? ` Ahora mismo están abiertos y se cerrarán: ${abiertos.join(', ')}. Si alguno no responde en 8 segundos se fuerza el cierre y se pierde lo que tenga sin guardar (formularios, pestañas): avisa al cliente antes.` : ''}`}
+        detalle={hayMedio ? 'Has marcado algo que se pierde para siempre (papelera, volcados de memoria o la carpeta C:\\TEMP).' : null} textoOk="Sí, limpiar" textoNo="Cancelar"
         alAceptar={() => { setConfirmar(false); alLimpiar() }} alCancelar={() => setConfirmar(false)} />
     </div>
   )

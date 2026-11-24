@@ -12,6 +12,10 @@ function Open-Sensores {
     $dir = Join-Path $Raiz 'Apps\HW Info\LibreHardwareMonitor'
     $lib = Join-Path $dir 'LibreHardwareMonitorLib.dll'
     if (-not (Test-Path -LiteralPath $lib)) { return [pscustomobject]@{ Ok = $false; Motivo = 'No está LibreHardwareMonitor en el kit.'; Equipo = $null } }
+    # Las bibliotecas se cargan en este proceso: solo si su huella consta en la lista de integridad
+    if (Get-Command Test-ScriptAutorizado -ErrorAction SilentlyContinue) {
+        foreach ($d in 'HidSharp.dll', 'LibreHardwareMonitorLib.dll') { $m = Test-ScriptAutorizado (Join-Path $dir $d); if ($m) { return [pscustomobject]@{ Ok = $false; Motivo = "No se cargan los sensores: $d $m."; Equipo = $null } } }
+    }
     try {
         foreach ($d in 'HidSharp.dll', 'LibreHardwareMonitorLib.dll') { [void][Reflection.Assembly]::LoadFrom((Join-Path $dir $d)) }
         $c = New-Object LibreHardwareMonitor.Hardware.Computer
@@ -35,7 +39,7 @@ function Read-Sensores($s) {
         foreach ($hw in $s.Equipo.Hardware) { & $visitar $hw }
         $r.Todos = $lista.ToArray()
         $cpu = @($lista | Where-Object { $_.Hw -eq 'Cpu' })
-        $tc = @($cpu | Where-Object { $_.Tipo -eq 'Temperature' -and $null -ne $_.Valor })
+        $tc = @($cpu | Where-Object { $_.Tipo -eq 'Temperature' -and $null -ne $_.Valor -and $_.Valor -gt 0 })   # sin permisos o sin PawnIO los sensores de la CPU salen a 0 °C: eso no es una lectura
         if ($tc) {
             $pk = $tc | Where-Object { $_.Nombre -match 'Package|Tctl|Core Max|Average' } | Select-Object -First 1
             $r.CpuTemp = if ($pk) { [math]::Round($pk.Valor) } else { [math]::Round(($tc | Measure-Object Valor -Maximum).Maximum) }

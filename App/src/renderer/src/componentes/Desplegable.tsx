@@ -30,9 +30,10 @@ export default function Desplegable({ etiqueta, valor, opciones, alElegir, desha
   const tecla = (e: React.KeyboardEvent) => {
     if (!abierto) { if (['Enter', ' ', 'ArrowDown'].includes(e.key)) { e.preventDefault(); abrir() } return }
     if (e.key === 'Escape') { e.preventDefault(); cerrar() }
+    else if (!opciones.length) return   // sin opciones, las flechas darían NaN y Enter leería una opción que no existe
     else if (e.key === 'ArrowDown') { e.preventDefault(); setActiva((a) => (a + 1) % opciones.length) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiva((a) => (a - 1 + opciones.length) % opciones.length) }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(opciones[activa].k) }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const o = opciones[Math.min(activa, opciones.length - 1)]; if (o) elegir(o.k) }
     else if (e.key === 'Tab') setAbierto(false)
   }
 

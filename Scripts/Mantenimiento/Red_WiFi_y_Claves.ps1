@@ -79,7 +79,9 @@ if ($script:AccionRed -eq "WIFI") {
     Write-Output "  $($E.Candado) REDES WI-FI Y CONTRASEÑAS GUARDADAS EN ESTE PC"
     Write-Output "========================================================`n"
     # El XML que exporta netsh no depende del idioma de Windows (el texto de «netsh wlan show» sí)
-    $dir = Join-Path $env:TEMP ('Nitrit0_wifi_' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    # Restos de ejecuciones anteriores cortadas (con las claves en claro): se borran antes de empezar
+    Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'Nitrit0_wifi_*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    $dir = Join-Path $env:TEMP ('Nitrit0_wifi_' +[guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     try {
         $r = Invoke-Proceso (Join-Path $env:SystemRoot 'System32\netsh.exe') "wlan export profile key=clear folder=`"$dir`"" 60 'Exportar perfiles Wi-Fi'

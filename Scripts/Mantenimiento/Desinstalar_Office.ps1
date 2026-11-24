@@ -201,8 +201,9 @@ function Remove-RutaOffice {
     catch {
         # Carpetas con permisos de SYSTEM/TrustedInstaller (p. ej. MSOCache): se toma posesión y se reintenta
         try {
-            & takeown.exe /f $Ruta /r /d s *> $null
-            & icacls.exe $Ruta /grant '*S-1-5-32-544:F' /t /c /q   # SID del grupo Administradores: el nombre «Administrators» no existe en un Windows en español *> $null
+            # takeown /d pide la respuesta por defecto en el idioma de Windows («s», «y», «j»…): se usa icacls con el SID de Administradores, que no depende del idioma
+            & icacls.exe $Ruta /setowner '*S-1-5-32-544' /t /c /q *> $null
+            & icacls.exe $Ruta /grant '*S-1-5-32-544:F' /t /c /q *> $null   # SID del grupo Administradores: el nombre «Administrators» no existe en un Windows en español
             Remove-Item -LiteralPath $Ruta -Recurse -Force -ErrorAction Stop
             Write-Output "    $($Global:E.OK) Carpeta borrada (tomando posesión): $Ruta"
             $script:Eliminados++
@@ -537,6 +538,7 @@ Write-Output "  $($Global:E.Basura) DESINSTALADOR COMPLETO DE OFFICE"
 Write-Output "========================================================"
 
 Assert-Admin 'desinstalar Office'
+Confirm-EquipoListo 'desinstalar Office'
 
 try {
     $productos = @(Get-ProductoOffice)
@@ -555,7 +557,11 @@ try {
     $resumen += "`r`nCLAVES DE REGISTRO SOBRANTES: $($claves.Count)"
 
     $limpiarEquipo = $true; $datosUsuario = [bool]$IncluirDatosUsuario; $crearPunto = [bool]$PuntoRestauracion
-    if ($SinMenu) { Write-Output $resumen }
+    if ($SinMenu) {
+        Write-Output $resumen
+        # Sin ventana de opciones tampoco había confirmación: -SinMenu desinstalaba Office y borraba carpetas y claves directamente. Solo se salta si es una simulación.
+        if (-not $Simular -and -not (Confirm-Accion "Se va a DESINSTALAR Microsoft Office y limpiar sus restos (carpetas y claves de registro).`n`n¿Continuar?" 'Nitrit0 Kit - Desinstalar Office' -Siempre)) { Exit-Kit 'Cancelado' 'Cancelado: no se ha cambiado nada.' }
+    }
     else {
         $op = Show-OpcionesDesinstalacion -Resumen $resumen -Simulacion ([bool]$Simular) -DatosUsuario ([bool]$IncluirDatosUsuario) -PuntoRestauracion $true
         if (-not $op.Aceptado) { Exit-Kit 'Cancelado' 'Cancelado: no se ha cambiado nada.' }
@@ -564,8 +570,7 @@ try {
 
     if ($script:Simulando) { Write-Output "`n$($Global:E.Info) MODO SIMULACIÓN: no se cambia nada." }
     elseif ($crearPunto) {
-        try { Checkpoint-Computer -Description 'Antes de desinstalar Office' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop; Write-Output "$($Global:E.OK) Punto de restauración creado." }
-        catch { Write-Output "$($Global:E.Aviso) No se pudo crear el punto de restauración (Windows limita uno cada 24 h): $($_.Exception.Message)" }
+        [void](New-PuntoRestauracionSeguro 'Antes de desinstalar Office')   # con tiempo máximo (3 min) y avisos propios; Checkpoint-Computer a secas se cuelga si VSS está atascado
     }
     else { Write-Output "$($Global:E.Info) Sin punto de restauración (desmarcado)." }
     if (-not $script:Simulando) {

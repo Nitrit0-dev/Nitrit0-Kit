@@ -1,0 +1,16 @@
+/* Solo lo que «Nitrit0 Clonador» necesita además de la base visual del kit (tokens.css y componentes.css). */
+.app { grid-template-columns: minmax(0, 1fr); }
+.selectores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 880px) { .selectores { grid-template-columns: 1fr; } }
+.selectores .campo { margin-bottom: 0; }
+.selectores select, .carpeta input { min-height: 36px; padding: 6px 10px; border: 1px solid var(--borde-fuerte); border-radius: var(--radio-chico); background: var(--fondo); color: var(--texto); font: inherit; }
+.selectores select.destino { border-color: var(--error); }
+.selectores select:focus-visible, .carpeta input:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.carpeta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.carpeta input { flex: 1; min-width: 260px; font: 13px var(--mono); }
+.acciones-clon { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.consola.clon { height: auto; min-height: 220px; max-height: 46vh; }
+dialog.frase { max-width: 560px; }
+dialog.frase input { width: 100%; box-sizing: border-box; min-height: 36px; padding: 6px 10px; border: 1px solid var(--borde-fuerte); border-radius: var(--radio-chico); background: var(--fondo); color: var(--texto); font: 14px var(--mono); }
+dialog.frase input:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+dialog.frase code { font: 600 14px var(--mono); color: var(--error); }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Check, Circle, CircleAlert, Heart, Info } from 'lucide-react'
 import { PageHeader, Sello } from '../componentes/Basicos'
 import Desplegable from '../componentes/Desplegable'
+import HistorialCambios from '../componentes/HistorialCambios'
 import type { AjusteInfo, OtraCuenta } from '../tipos'
 
 type Est = 'rec' | 'pred' | 'pers' | 'gusto' | 'otro'
@@ -62,7 +63,7 @@ export default function Ajustes() {
 
   return (
     <div className="pagina">
-      <PageHeader titulo="Ajustes de Windows" subtitulo="Cómo está cada ajuste ahora mismo en este equipo y cuál recomendamos. Cada cambio guarda el valor anterior: se puede deshacer desde «Deshacer los últimos cambios»."
+      <PageHeader titulo="Ajustes de Windows" subtitulo="Cómo está cada ajuste ahora mismo en este equipo y cuál recomendamos. Cada cambio guarda el valor anterior: se puede deshacer desde el «Historial de cambios» del final de esta página."
         acciones={<button className="boton" onClick={leer} disabled={leyendo}>{leyendo ? 'Leyendo…' : 'Volver a leer'}</button>} />
       {cuenta?.otra && <div className="aj-nota aviso" role="alert"><CircleAlert size={16} strokeWidth={1.75} aria-hidden="true" />La app está abierta con otra cuenta ({cuenta.proceso}) y el escritorio es de {cuenta.sesion}: estos ajustes cambiarían el perfil equivocado, así que no se pueden cambiar desde aquí. Ábrela con tu propia cuenta de administrador.</div>}
       <div className="aj-resumen" role="status">
@@ -119,6 +120,7 @@ export default function Ajustes() {
           </div>
         </section>
       ))}
+      <HistorialCambios ocupado={ocupados.length > 0} />
     </div>
   )
 }

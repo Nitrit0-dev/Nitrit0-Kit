@@ -9,12 +9,14 @@
 #  -Lite: construye SOLO Nitrit0_Kit_Lite (el público sin la carpeta Apps de terceros) para publicarlo, p. ej., en GitHub Releases.
 # =====================================================================
 [CmdletBinding()]
-param([string]$Destino, [string]$Exe, [string]$ExeLimpieza, [switch]$ExeUnico, [switch]$Lite)
+param([string]$Destino, [string]$Exe, [string]$ExeLimpieza, [string]$ExeAntivirus, [string]$ExeClonador, [switch]$ExeUnico, [switch]$Lite)
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path -Parent $PSScriptRoot
 if (-not $Destino) { $Destino = Join-Path (Split-Path -Parent $raiz) 'Nitrit0_Packs' }
 if (-not $Exe) { $Exe = Join-Path $raiz 'App\bin-unico\Nitrit0.exe' }
 if (-not $ExeLimpieza) { $ExeLimpieza = Join-Path $raiz 'App\bin-limpieza\Nitrit0_Limpieza.exe' }   # opcional: si no está compilada, el pack sale sin ella
+if (-not $ExeAntivirus) { $ExeAntivirus = Join-Path $raiz 'App\bin-antivirus\Nitrit0_Antivirus.exe' }   # opcional, como la de limpieza
+if (-not $ExeClonador) { $ExeClonador = Join-Path $raiz 'App\bin-clonador\Nitrit0_Clonador.exe' }   # opcional, solo pack personal
 $extras = Join-Path $Destino '_Extras_Personales'
 # Por defecto los packs llevan la app DESCOMPRIMIDA en App\Motor (y App\MotorLimpieza) con un lanzador fino: el .exe único portable descomprime ~360 MB en %TEMP% en cada arranque.
 # -ExeUnico fuerza el .exe único de antes. La carpeta es la que deja electron-builder junto al .exe (win-unpacked).
@@ -22,6 +24,10 @@ $motorApp = Join-Path (Split-Path -Parent $Exe) 'win-unpacked'
 $motorLimp = Join-Path (Split-Path -Parent $ExeLimpieza) 'win-unpacked'
 $modoCarpeta = (-not $ExeUnico) -and (Test-Path -LiteralPath (Join-Path $motorApp 'Nitrit0 Kit.exe'))
 $modoCarpetaLimp = (-not $ExeUnico) -and (Test-Path -LiteralPath (Join-Path $motorLimp 'Nitrit0 Limpieza.exe'))
+$motorAv = Join-Path (Split-Path -Parent $ExeAntivirus) 'win-unpacked'
+$modoCarpetaAv = (-not $ExeUnico) -and (Test-Path -LiteralPath (Join-Path $motorAv 'Nitrit0 Antivirus.exe'))
+$motorClon = Join-Path (Split-Path -Parent $ExeClonador) 'win-unpacked'
+$modoCarpetaClon = (-not $ExeUnico) -and (Test-Path -LiteralPath (Join-Path $motorClon 'Nitrit0 Clonador.exe'))
 if (-not (Test-Path -LiteralPath $Exe)) { throw "Falta $Exe. Ejecuta antes: cd App; npm run empaquetar:unico" }
 New-Item -ItemType Directory -Force $Destino | Out-Null
 $utf8 = New-Object Text.UTF8Encoding($false)
@@ -73,6 +79,17 @@ function New-Pack([string]$Nombre, [bool]$Personal, [bool]$Lite = $false) {
         Copy-Carpeta $motorLimp (Join-Path $dest 'App\MotorLimpieza')
         & (Join-Path $PSScriptRoot 'Crear_Lanzador.ps1') -Salida (Join-Path $dest 'Nitrit0_Limpieza.exe') -Destino 'App\MotorLimpieza\Nitrit0 Limpieza.exe' -Titulo 'Nitrit0 Limpieza' | Out-Null
     } elseif (Test-Path -LiteralPath $ExeLimpieza) { Copy-Item -LiteralPath $ExeLimpieza -Destination (Join-Path $dest 'Nitrit0_Limpieza.exe') } else { Write-Host '  AVISO: falta Nitrit0_Limpieza.exe (npm run limpieza); el pack sale sin ella.' -ForegroundColor Yellow }
+    if ($Personal) {   # el antivirus (app aparte) es solo del pack personal
+    if ($modoCarpetaAv) {
+        Copy-Carpeta $motorAv (Join-Path $dest 'App\MotorAntivirus')
+        & (Join-Path $PSScriptRoot 'Crear_Lanzador.ps1') -Salida (Join-Path $dest 'Nitrit0_Antivirus.exe') -Destino 'App\MotorAntivirus\Nitrit0 Antivirus.exe' -Titulo 'Nitrit0 Antivirus' -SinAdmin | Out-Null
+    } elseif (Test-Path -LiteralPath $ExeAntivirus) { Copy-Item -LiteralPath $ExeAntivirus -Destination (Join-Path $dest 'Nitrit0_Antivirus.exe') } else { Write-Host '  AVISO: falta Nitrit0_Antivirus.exe (npm run antivirus); el pack sale sin ella.' -ForegroundColor Yellow }
+    # El clonador (app aparte, pide administrador) también es solo del pack personal; llama a Clonar_Disco.ps1 con su integridad, simulación y confirmación escrita
+    if ($modoCarpetaClon) {
+        Copy-Carpeta $motorClon (Join-Path $dest 'App\MotorClonador')
+        & (Join-Path $PSScriptRoot 'Crear_Lanzador.ps1') -Salida (Join-Path $dest 'Nitrit0_Clonador.exe') -Destino 'App\MotorClonador\Nitrit0 Clonador.exe' -Titulo 'Nitrit0 Clonador' | Out-Null
+    } elseif (Test-Path -LiteralPath $ExeClonador) { Copy-Item -LiteralPath $ExeClonador -Destination (Join-Path $dest 'Nitrit0_Clonador.exe') } else { Write-Host '  AVISO: falta Nitrit0_Clonador.exe (npm run clonador); el pack sale sin ella.' -ForegroundColor Yellow }
+    }
 
     # Datos: NUNCA se copia la carpeta Datos del repositorio. Se crea vacía y solo lleva un kit.id nuevo, Ajustes.json limpio e Integridad.json recién calculado.
     # (El pack público no lleva ni siquiera subcarpetas ni Favoritos/Versiones: el kit las crea al usarse.)
@@ -98,11 +115,14 @@ function New-Pack([string]$Nombre, [bool]$Personal, [bool]$Lite = $false) {
     $leeme = if ($Personal) { $script:LeemePersonal } elseif ($Lite) { $script:LeemeLite } else { $script:LeemePublico }
     [IO.File]::WriteAllText((Join-Path $dest 'LEEME.txt'), $leeme, (New-Object Text.UTF8Encoding($true)))
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest 'Scripts\Regenerar_Integridad.ps1') | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Regenerar_Integridad.ps1 falló en $Nombre (código $LASTEXITCODE): el pack no se da por bueno" }
     $l = New-Object Collections.Generic.List[string]
     $l.Add('HERRAMIENTAS DEL PACK Y SUS HUELLAS (SHA-256)'); $l.Add('Generado: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
     $l.Add('Compara la huella con la que publica el autor de cada programa. «Sin firma» es habitual en herramientas pequeñas y no prueba nada por sí solo.'); $l.Add('')
     $l.Add('Nitrit0.exe (app de este kit, sin firmar): ' + (Get-FileHash -LiteralPath (Join-Path $dest 'Nitrit0.exe') -Algorithm SHA256).Hash)
     foreach ($r in 'App\Motor\Nitrit0 Kit.exe', 'App\Motor\resources\app.asar') { $p = Join-Path $dest $r; if (Test-Path -LiteralPath $p) { $l.Add("$r : " + (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash) } }
+    if (Test-Path -LiteralPath (Join-Path $dest 'Nitrit0_Antivirus.exe')) { $l.Add('Nitrit0_Antivirus.exe (revisa archivos con Defender, VirusTotal, la firma digital y, en el personal, ClamAV; sin firmar): ' + (Get-FileHash -LiteralPath (Join-Path $dest 'Nitrit0_Antivirus.exe') -Algorithm SHA256).Hash) }
+    if (Test-Path -LiteralPath (Join-Path $dest 'Nitrit0_Clonador.exe')) { $l.Add('Nitrit0_Clonador.exe (clona un disco con Windows a otro; solo pack personal, sin firmar): ' + (Get-FileHash -LiteralPath (Join-Path $dest 'Nitrit0_Clonador.exe') -Algorithm SHA256).Hash) }
     if (Test-Path -LiteralPath (Join-Path $dest 'Nitrit0_Limpieza.exe')) { $l.Add('Nitrit0_Limpieza.exe (limpiador y programas de inicio, sin firmar): ' + (Get-FileHash -LiteralPath (Join-Path $dest 'Nitrit0_Limpieza.exe') -Algorithm SHA256).Hash) }
     $l.Add('')
     $l.Add('Ruta | MB | Firma | Firmante | SHA-256')
@@ -134,6 +154,8 @@ function New-Pack([string]$Nombre, [bool]$Personal, [bool]$Lite = $false) {
         $conClave = @(Get-ChildItem -LiteralPath (Join-Path $dest 'Apps') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in $extTexto -and $_.Length -lt 5MB } |
             Select-String -Pattern 'RAR registration data', '\b[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\b', '\b\d{6}(-\d{6}){7}\b' -List -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Path.Substring($dest.Length + 1)) -> $($_.Pattern)" })
         if (Get-ChildItem -LiteralPath $dest -Recurse -Force -Filter 'Desactivar_SmartAppControl.bat' -ErrorAction SilentlyContinue) { throw 'El pack público lleva Desactivar_SmartAppControl.bat: es solo del pack personal.' }
+        if ((Test-Path -LiteralPath (Join-Path $dest 'Nitrit0_Antivirus.exe')) -or (Test-Path -LiteralPath (Join-Path $dest 'App\MotorAntivirus')) -or (Test-Path -LiteralPath (Join-Path $dest 'Apps\Antivirus'))) { throw 'Este pack lleva el antivirus (y ClamAV): es solo del pack personal.' }
+        if ((Test-Path -LiteralPath (Join-Path $dest 'Nitrit0_Clonador.exe')) -or (Test-Path -LiteralPath (Join-Path $dest 'App\MotorClonador'))) { throw 'El pack público lleva Nitrit0_Clonador.exe: es solo del pack personal.' }
         if (Test-Path -LiteralPath (Join-Path $dest 'Scripts\Mantenimiento\Clonar_Disco.ps1')) { throw 'El pack público lleva Clonar_Disco.ps1: es solo del pack personal.' }
         if ($conClave) { throw "El pack público lleva ficheros con aspecto de clave/licencia: $($conClave -join '; ')" }
         if ($sobra -or $faltan -or $prohibido) { throw "El pack público no pasa la lista blanca. Sobra en Datos: [$(($sobra | ForEach-Object { $_.Name }) -join ', ')]. Falta en Datos: [$($faltan -join ', ')]. Prohibido: [$(($prohibido | ForEach-Object { $_.FullName }) -join '; ')]" }
@@ -226,6 +248,9 @@ Huellas de las herramientas: Herramientas_y_huellas.txt
 Si Windows 11 bloquea Nitrit0.exe con «Control Inteligente de Aplicaciones» (los .exe de este kit no están firmados):
   Desactivar_SmartAppControl.bat (clic derecho > Ejecutar como administrador). Es IRREVERSIBLE y solo para TU equipo: apaga esa
   protección de Windows y no se puede volver a encender sin reinstalar. Con /simular solo muestra el estado.
+
+Extra: "Nitrit0_Clonador.exe" es una app aparte para clonar un disco con Windows a otro (pide administrador; solo simula hasta que escribes la confirmación «BORRAR DISCO n»).
+Extra: "Nitrit0_Antivirus.exe" revisa un archivo antes de abrirlo: con el Defender del equipo, con la firma digital y con VirusTotal (y con ClamAV, que se actualiza con Apps\Antivirus\ClamAV\Actualizar_base_de_firmas.bat; de VirusTotal solo envía la huella del archivo, nunca el archivo; hace falta tu propia clave gratuita de VirusTotal). Solo informa: no borra nada.
 '@
 
 if ($Lite) { New-Pack 'Nitrit0_Kit_Lite' $false $true }

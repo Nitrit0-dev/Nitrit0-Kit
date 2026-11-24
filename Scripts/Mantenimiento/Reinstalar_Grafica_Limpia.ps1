@@ -12,6 +12,8 @@
 param([switch]$SinPreguntas)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+Assert-Admin 'reinstalar el driver de la gráfica'   # pnputil, el punto de restauración y DDU lo necesitan: mejor saberlo antes del primer paso
+Confirm-EquipoListo 'reinstalar el driver de la gráfica'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 
 # ---------------------------------------------------------------------
@@ -180,6 +182,10 @@ function New-Paso([string]$texto, [int]$y, [scriptblock]$accion) {
         if ($n -gt 0 -and $copiado) {
             Save-Informativo "Driver de la gráfica copiado a $dir" "Para volver a él: pnputil /add-driver `"$dir\*.inf`" /install /subdirs, o usa el punto de restauración de Nitrit0."
             Say "  $($E.OK) Driver actual guardado en $dir ($copiado archivos) y punto de restauración creado."
+        } elseif (@($gpus | Where-Object { $_.Inf -match '^oem\d+\.inf$' }).Count) {
+            # Había driver del fabricante y la copia falló: no se da el paso por hecho (así DDU no se abre sin una copia real a la que volver)
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            throw 'No se pudo guardar la copia del driver actual (pnputil /export-driver falló). DDU no se abre sin copia: revisa el espacio y los permisos y repite este paso.'
         } else {
             Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
             Say "  $($E.Aviso) No había un driver del fabricante que copiar (el equipo usa el básico de Microsoft). Punto de restauración creado igualmente."

@@ -57,7 +57,10 @@ $jf = Join-Path $datos 'Integridad.json'
 function Get-Huellas { Get-ChildItem -LiteralPath (Join-Path $raiz 'Scripts'), (Join-Path $raiz 'Apps'), (Join-Path $raiz 'App\datos') -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $r = $_.FullName.Substring($raiz.Length + 1); [pscustomobject]@{ R = $r; L = $_.Length; H = $(if (Test-HuellaRequerida $r) { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash } else { '' }) } } }   # SHA-256 de Scripts y de los ejecutables de Apps; el resto, por tamaño
 if ($GenerarIntegridad) {
     Write-Output "`n  $($E.Reloj) Calculando huellas (SHA-256 de Scripts y de los ejecutables de Apps)…"
-    Get-Huellas | ConvertTo-Json -Compress | Set-Content -LiteralPath $jf -Encoding UTF8
+    # Un solo generador de la lista de integridad: el de Get-Huellas no incluía los .exe de las apps ni App\Motor*, y los dejaba sin huella
+    $regen = Join-Path $raiz 'Scripts\Regenerar_Integridad.ps1'
+    if (Test-Path -LiteralPath $regen) { & $regen | Out-Null }
+    else { Get-Huellas | ConvertTo-Json -Compress | Set-Content -LiteralPath $jf -Encoding UTF8 }
     Write-Output "  $($E.OK) Guardado en Datos\Integridad.json"
 }
 elseif (Test-Path -LiteralPath $jf) {

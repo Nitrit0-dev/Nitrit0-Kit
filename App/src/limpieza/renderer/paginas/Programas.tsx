@@ -50,15 +50,15 @@ export default function Programas({ lista, admin, ocupado, marcha, salida, alRec
           <button className="boton principal-b" disabled={ocupado || !elegidos.length} onClick={() => setConfirmar(true)}>{elegidos.length ? `Desinstalar a fondo (${elegidos.length})` : 'Desinstalar a fondo'}</button>
         </>} />
       {(marcha || salida.length > 0) && (
-        <div className="resumen-barra" role="status" style={{ display: 'block' }}>
+        <div className="resumen-barra en-bloque" role="status">
           <div className="grande">{marcha ? 'Desinstalando…' : 'Terminado'}{total > 0 && <span className="sub num"> · {marcha ? `programa ${Math.min(hecho + 1, total)} de ${total}` : `${total} programa(s)`}</span>}</div>
-          <div className="sub" style={{ margin: '4px 0 8px' }}>{marcha ? fase : 'Revisa abajo cómo ha ido. Lo borrado está en la cuarentena y se puede restaurar.'}</div>
+          <div className="sub entre">{marcha ? fase : 'Revisa abajo cómo ha ido. Lo borrado está en la cuarentena y se puede restaurar.'}</div>
           {marcha && (total > 0 ? <Medidor valor={hecho} max={total} etiqueta="Programas desinstalados" rol="progressbar" /> : <Medidor valor={0} etiqueta="Desinstalando" rol="progressbar" indeterminado />)}
-          <div className="consola" role="log" aria-label="Avance de la desinstalación" style={{ marginTop: 10, maxHeight: 220, overflowY: 'auto' }}>{salida.join('\n')}</div>
+          <div className="consola corta" role="log" aria-label="Avance de la desinstalación">{salida.join('\n')}</div>
         </div>
       )}
       <div className="filtros" role="group" aria-label="Buscar y ordenar">
-        <label className="buscador" style={{ minWidth: 260 }}><Search size={16} strokeWidth={1.75} aria-hidden="true" /><input value={consulta} onChange={(e) => setConsulta(e.target.value)} placeholder="Buscar por nombre o editor" aria-label="Buscar programas" /></label>
+        <label className="buscador ancho-buscador"><Search size={16} strokeWidth={1.75} aria-hidden="true" /><input value={consulta} onChange={(e) => setConsulta(e.target.value)} placeholder="Buscar por nombre o editor" aria-label="Buscar programas" /></label>
         {chip('nombre', 'Por nombre')}{chip('tamano', 'Los que más ocupan')}{chip('uso', 'Último uso')}
         <button className="chip" aria-pressed={sinUsar} disabled={!conFecha} onClick={() => setSinUsar(!sinUsar)}>Sin usar en 6 meses<span className="cuenta num">{nSinUsar}</span></button>
         <button className="chip" aria-pressed={grandes} onClick={() => setGrandes(!grandes)}>Más de 500 MB</button>

@@ -55,6 +55,8 @@ if ($nBloques -lt 8) { Exit-Kit 'Cancelado' "${L}: tiene muy poco espacio libre 
 if (-not $SinPreguntas -and -not (Confirm-Accion "Se van a escribir unos $(Format-Tam ($nBloques * $bloque)) de archivos de prueba en ${L}: ($(if ($sel.Etiqueta) { $sel.Etiqueta } else { 'sin etiqueta' })) y se borrarán al terminar.`n`nTus archivos no se tocan, pero si el dispositivo es falsificado lo que ya tenga guardado podría estropearse.`n`n¿Hacer copia de lo importante antes y continuar?" 'Nitrit0 Kit' -Siempre)) { Exit-Kit 'Cancelado' 'No se ha probado nada.' }
 
 $dir = Join-Path "${L}:\" 'Nitrit0_PruebaCapacidad'
+# Restos de una prueba anterior cancelada a la fuerza (el «finally» no corre al cancelar): son solo archivos .bin de esta herramienta
+if (Test-Path -LiteralPath $dir -PathType Container) { Get-ChildItem -LiteralPath $dir -Filter '*.bin' -File -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue }
 $md5 = [Security.Cryptography.MD5]::Create()
 $rng = New-Object Security.Cryptography.RNGCryptoServiceProvider
 $buf = New-Object byte[] $bloque; $rng.GetBytes($buf)

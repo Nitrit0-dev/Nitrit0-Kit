@@ -14,7 +14,17 @@ if (-not $SoloAnalizar) { Assert-Admin 'limpiar los temporales de todo el equipo
 function Format-Tam([int64]$b) { if ($b -ge 1GB) { '{0:N1} GB' -f ($b / 1GB) } elseif ($b -ge 1MB) { '{0:N0} MB' -f ($b / 1MB) } else { '{0:N0} KB' -f ($b / 1KB) } }
 # Archivos de una ruta con comodín final («carpeta\*»): con -Path y -Recurse, PowerShell no desciende a las carpetas que casan con el comodín, así que se recorren aparte
 function Get-ArchivosRuta([string]$r) {
-    foreach ($i in @(Get-ChildItem -Path $r -Force -ErrorAction SilentlyContinue)) { if ($i.PSIsContainer) { Get-ChildItem -LiteralPath $i.FullName -File -Recurse -Force -ErrorAction SilentlyContinue } else { $i } }
+    # Los enlaces (junctions y simbólicos) no se recorren: con -Recurse en PowerShell 5.1 se entra en ellos y se borraría fuera de la ruta prevista
+    foreach ($i in @(Get-ChildItem -Path $r -Force -ErrorAction SilentlyContinue)) {
+        if ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        if ($i.PSIsContainer) { Get-ArchivosSinEnlaces $i.FullName } else { $i }
+    }
+}
+function Get-ArchivosSinEnlaces([string]$dir) {
+    foreach ($i in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue)) {
+        if ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        if ($i.PSIsContainer) { Get-ArchivosSinEnlaces $i.FullName } else { $i }
+    }
 }
 function Get-TamRutas([string[]]$rutas, [int]$DiasMinimo = 0) {
     $t = [int64]0; $limite = (Get-Date).AddDays(-$DiasMinimo)
@@ -40,7 +50,7 @@ $rutasApps = @(foreach ($u in $perfiles) {
 
 # Categorías: Nombre, rutas, antigüedad mínima en días (0 = todo)
 $cats = @(
-    [pscustomobject]@{ Id = 'temp'; Nombre = 'Temporales de Windows y del usuario'; Rutas = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*", "$env:SystemDrive\TEMP\*", "$env:LOCALAPPDATA\CrashDumps\*"); Dias = 0 }
+    [pscustomobject]@{ Id = 'temp'; Nombre = 'Temporales de Windows y del usuario'; Rutas = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*", "$env:LOCALAPPDATA\CrashDumps\*"); Dias = 0 }
     [pscustomobject]@{ Id = 'wu'; Nombre = 'Descargas de Windows Update ya instaladas'; Rutas = @("$env:SystemRoot\SoftwareDistribution\Download\*"); Dias = 0 }
     [pscustomobject]@{ Id = 'logs'; Nombre = 'Registros de Windows de más de 30 días'; Rutas = @("$env:SystemRoot\Logs\*"); Dias = 30 }
     [pscustomobject]@{ Id = 'nav'; Nombre = 'Cachés de navegadores (todas las cuentas)'; Rutas = $rutasNav; Dias = 0 }
@@ -96,7 +106,7 @@ foreach ($c in $cats) {
 
 # 3) Papelera
 Write-Output "  $($E.Info) Vaciando la Papelera…"
-try { Clear-RecycleBin -Force -ErrorAction Stop; Write-Output "    $($E.OK) Hecho." } catch { Write-Output "    $($E.Aviso) No se pudo vaciar la Papelera: $($_.Exception.Message)" }
+try { Clear-RecycleBin -DriveLetter $unidad -Force -ErrorAction Stop; Write-Output "    $($E.OK) Hecho." } catch { Write-Output "    $($E.Aviso) No se pudo vaciar la Papelera: $($_.Exception.Message)" }
 
 Start-Sleep -Seconds 1
 $liberado = [Math]::Max([int64]0, (Get-PSDrive -Name $unidad).Free - $libreAntes)

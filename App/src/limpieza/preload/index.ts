@@ -4,6 +4,7 @@ const api = {
   motor: (op: 'Analizar' | 'Limpiar' | 'InicioListar' | 'InicioCambiar' | 'ProgramasListar' | 'DesinstalarFondo' | 'RegistroAnalizar' | 'RegistroLimpiar', params: { ids?: string[]; tipo?: string; id?: string; activar?: boolean; nombres?: string[]; modo?: 'Auto' | 'Manual' } = {}): Promise<{ ok: boolean; mensaje: string; codigo: number | null }> => ipcRenderer.invoke('motor', op, params),
   estado: (): Promise<{ tema: 'oscuro' | 'claro' | 'sistema'; kit: string; publico: boolean }> => ipcRenderer.invoke('estado'),
   cerrar: () => ipcRenderer.invoke('cerrar'),
+  cancelarAnalisis: (): Promise<boolean> => ipcRenderer.invoke('cancelarAnalisis'),
   alEvento: (cb: (v: Record<string, unknown> & { op: string; evento: string }) => void) => {
     const f = (_e: unknown, v: Record<string, unknown> & { op: string; evento: string }) => cb(v)
     ipcRenderer.on('motor:evento', f)

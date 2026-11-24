@@ -34,7 +34,7 @@ function Get-Analisis([string]$texto) {
     $act
 }
 function Save-Hosts([string]$contenido) {
-    $dirResp = Join-Path (Get-KitDatos) 'Respaldo\Hosts'; New-Item -ItemType Directory -Force $dirResp | Out-Null
+    $dirResp = Join-Path (Get-BaseTrabajo) 'Respaldo\Hosts'; New-Item -ItemType Directory -Force $dirResp | Out-Null
     $copia = Join-Path $dirResp ('hosts_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
     if (Test-Path -LiteralPath $Archivo) { Copy-Item -LiteralPath $Archivo -Destination $copia -Force }
     [void](Start-OperacionSegura 'Editar HOSTS' -SinPuntoRestauracion)

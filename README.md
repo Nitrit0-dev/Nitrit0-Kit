@@ -70,6 +70,10 @@ Estructura: `App\` (app Electron + React), `Scripts\` (motor, catálogo y `Mante
 
 Más detalle en [`SECURITY.md`](SECURITY.md).
 
+## Apoyar el proyecto
+
+Es gratuito y MIT. Si te ha ahorrado tiempo y quieres echar una mano, puedes hacerlo por [PayPal](https://paypal.me/Nitritog). No hace falta.
+
 ## Licencia
 
 [MIT](LICENSE) para el código y los textos de este repositorio. Los programas de terceros que coloques en `Apps\` mantienen sus propias licencias.

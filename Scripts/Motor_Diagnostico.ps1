@@ -103,12 +103,12 @@ Res $e $res $d
 
 @{ Id='win11'; Grupo='Windows'; Nombre='Compatibilidad y soporte de Windows'; Modo='Rapido'; Seg=6; Codigo=@'
 $os = Get-CimInstance Win32_OperatingSystem; $cs = Get-CimInstance Win32_ComputerSystem; $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-$build = [int]$os.BuildNumber; $empresa = ($os.Caption -match 'Enterprise|Education|Empresa|Educaci')
+$build = [int]$os.BuildNumber; $empresa = ($os.Caption -match 'Enterprise|Education|Empresa|Educaci|Server')
 $d = @(); $falta = @(); $av = @()
 # --- Fin de soporte según el calendario de Microsoft (ediciones Home/Pro) ---
 $fin = @{ 19045 = '14/10/2025'; 22000 = '10/10/2023'; 22621 = '08/10/2024'; 22631 = '11/11/2025'; 26100 = '13/10/2026'; 26200 = '13/10/2027' }
 $versiones = @{ 19045 = 'Windows 10 22H2'; 22000 = 'Windows 11 21H2'; 22621 = 'Windows 11 22H2'; 22631 = 'Windows 11 23H2'; 26100 = 'Windows 11 24H2'; 26200 = 'Windows 11 25H2' }
-$nombreV = if ($versiones[$build]) { $versiones[$build] } else { "$($os.Caption) (compilación $build)" }
+$nombreV = if ($versiones[$build] -and $os.Caption -notmatch 'Server') { $versiones[$build] } else { "$($os.Caption) (compilación $build)" }
 $d += "Versión instalada: $nombreV"
 $estado = 'OK'; $texto = "$nombreV"
 if ($fin[$build] -and -not $empresa) {
@@ -124,8 +124,9 @@ if ($nom -match 'Core\(TM\)\s*i[3579]-(\d{3,5})') { $n = $matches[1]; $g = if ($
 elseif ($nom -match 'Ryzen\s*\d\s*(?:PRO\s*)?(\d)\d{3}') { $cpuOk = ([int]$matches[1] -ge 2); if (-not $cpuOk) { $falta += 'Procesador Ryzen de 1.ª generación (se necesita Zen+ / serie 2000 o posterior)' } }
 elseif ($nom -match 'Ultra|Snapdragon|Core\(TM\)\s*[3579]\s') { $cpuOk = $true }
 $d += "Procesador: $nom → " + $(if ($null -eq $cpuOk) { 'no se puede confirmar con la lista oficial' } elseif ($cpuOk) { 'generación compatible' } else { 'generación NO compatible' })
-$tpm2 = $false; try { $t = Get-CimInstance -Namespace root/cimv2/security/microsofttpm -ClassName Win32_Tpm -ErrorAction Stop; $tpm2 = ($t.SpecVersion -match '^2\.') ; $d += "TPM: versión $($t.SpecVersion)" } catch { $d += 'TPM: no detectado' }
-if (-not $tpm2) { $falta += 'No hay TPM 2.0' }
+$tpm2 = $false; try { $t = Get-CimInstance -Namespace root/cimv2/security/microsofttpm -ClassName Win32_Tpm -ErrorAction Stop; $tpm2 = ($t.SpecVersion -match '^2\.') ; $d += "TPM: versión $($t.SpecVersion)" } catch { $d += $(if (Test-EsAdmin) { 'TPM: no detectado' } else { 'TPM: no se pudo leer sin permisos de administrador' }) }
+# Sin administrador Windows no deja consultar el TPM: no se da por ausente (daba un falso «No hay TPM 2.0»)
+if (-not $tpm2 -and (Test-EsAdmin)) { $falta += 'No hay TPM 2.0' }
 $uefi = $true; $sb = $null
 try { $sb = Confirm-SecureBootUEFI -ErrorAction Stop; $d += "Arranque UEFI: sí · Arranque seguro: $(if ($sb) { 'activado' } else { 'desactivado (puede activarse en la BIOS)' })"; if (-not $sb) { $falta += 'Arranque seguro desactivado (activable en la BIOS)' } } catch { $uefi = $false; $d += 'Arranque: BIOS heredada (Legacy), no UEFI'; $falta += 'El equipo arranca en modo Legacy (necesita UEFI + arranque seguro)' }
 $d += ("RAM: {0:N1} GB · Disco del sistema: {1}" -f $ramGB, $(try { '{0:N0} GB' -f ((Get-Volume -DriveLetter $env:SystemDrive[0]).Size / 1GB) } catch { 'n/d' }))
@@ -133,7 +134,7 @@ $yaW11 = ($build -ge 22000)
 if ($yaW11) { $d += 'Este equipo ya ejecuta Windows 11.' }
 elseif ($falta.Count) { $d += "No cumple los requisitos de Windows 11:"; $falta | ForEach-Object { $d += "  · $_" } } else { $d += 'Cumple los requisitos de Windows 11: puede actualizarse.' }
 if ($av) { return (Res 'Aviso' ($av -join '. ') ($d -join "`n") @{ Windows = $nombreV; Compatible11 = (-not $falta.Count) }) }
-if ($yaW11) { return (Res 'OK' "$nombreV con soporte vigente" ($d -join "`n") @{ Windows = $nombreV; Compatible11 = $true }) }
+if ($yaW11) { return (Res 'OK' $(if ($fin[$build] -and $os.Caption -notmatch 'Server') { "$nombreV con soporte vigente" } else { "$nombreV (el calendario de soporte de esta compilación no está en la lista del kit)" }) ($d -join "`n") @{ Windows = $nombreV; Compatible11 = $true }) }
 if ($falta.Count) { return (Res 'Info' "$nombreV · no compatible con Windows 11 ($($falta.Count) requisito(s) sin cumplir)" ($d -join "`n") @{ Windows = $nombreV; Compatible11 = $false }) }
 Res 'OK' "$nombreV · cumple los requisitos de Windows 11" ($d -join "`n") @{ Windows = $nombreV; Compatible11 = $true }
 '@ },
@@ -293,7 +294,7 @@ Res $e $res ($d -join "`n")
 @{ Id='dispositivos'; Grupo='Dispositivos'; Nombre='Dispositivos con errores'; Modo='Rapido'; Seg=6; Codigo=@'
 $bad = @(Get-CimInstance Win32_PnPEntity -Filter 'ConfigManagerErrorCode <> 0')
 $desact = @($bad | Where-Object { $_.ConfigManagerErrorCode -eq 22 })
-$mal = @($bad | Where-Object { $_.ConfigManagerErrorCode -ne 22 })
+$mal = @($bad | Where-Object { $_.ConfigManagerErrorCode -notin 22, 45 })   # 45: dispositivo fantasma (desconectado), no un fallo
 $d = @()
 foreach ($x in $mal) { $d += "ERROR $($x.ConfigManagerErrorCode): $($x.Name) [$($x.PNPClass)]" }
 foreach ($x in $desact) { $d += "Desactivado: $($x.Name) [$($x.PNPClass)]" }
@@ -319,7 +320,7 @@ $res = if ($av) { $av -join '. ' } else { 'Detectados: ' + ($resumen -join ' · 
 Res $e $res ($d -join "`n")
 '@ },
 
-@{ Id='red'; Grupo='Red'; Nombre='Conexión de red'; Modo='Rapido'; Seg=15; Codigo=@'
+@{ Id='red'; Grupo='Red'; Nombre='Conexión de red'; Modo='Rapido'; Seg=25; Codigo=@'
 $e = 'OK'; $av = @(); $d = @()
 $cfgs = @(Get-NetIPConfiguration | Where-Object { $_.NetAdapter.Status -eq 'Up' -and $_.IPv4Address })
 if (-not $cfgs) { return (Res 'Aviso' 'Sin conexión de red activa (ni cable ni Wi-Fi).') }
@@ -332,11 +333,21 @@ if ($gw) {
   if ($pg.Count -eq 0) { $e = 'Fallo'; $av += "No responde la puerta de enlace ($gw)" } else { $d += "Router ($gw): respuesta media $([math]::Round(($pg | Measure-Object ResponseTime -Average).Average)) ms" }
 }
 $pi = @(Test-Connection -ComputerName 1.1.1.1 -Count 4 -ErrorAction SilentlyContinue)
-if ($pi.Count -eq 0) { $e = Sube $e 'Aviso'; $av += 'Sin acceso a internet' }
+if ($pi.Count -eq 0) {
+  # Muchas redes bloquean el ping: antes de dar «sin internet» se prueba una petición HTTPS corta
+  $web = $false; try { $web = ((Invoke-WebRequest -Uri 'https://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 6 -ErrorAction Stop).StatusCode -eq 200) } catch { }
+  if ($web) { $d += 'Internet: responde por web (el ping a 1.1.1.1 está bloqueado, es normal en muchas redes)' }
+  else { $e = Sube $e 'Aviso'; $av += 'Sin acceso a internet' }
+}
 else {
   $media = [math]::Round(($pi | Measure-Object ResponseTime -Average).Average)
   $perd = [math]::Round((4 - $pi.Count) / 4 * 100)
-  $d += "Internet (1.1.1.1): $media ms · pérdida de paquetes $perd %"
+  $tp = @($pi | ForEach-Object { [double]$_.ResponseTime }); $mp = ($tp | Measure-Object -Average).Average
+  $vari = [math]::Round([math]::Sqrt((($tp | ForEach-Object { ($_ - $mp) * ($_ - $mp) }) | Measure-Object -Sum).Sum / $tp.Count), 1)
+  $d += "Cloudflare (1.1.1.1): $media ms · variación $vari ms · pérdida de paquetes $perd %"
+  $pgo = @(Test-Connection -ComputerName 8.8.8.8 -Count 4 -ErrorAction SilentlyContinue)
+  if ($pgo.Count) { $d += "Google (8.8.8.8): $([math]::Round(($pgo | Measure-Object ResponseTime -Average).Average)) ms · pérdida de paquetes $([math]::Round((4 - $pgo.Count) / 4 * 100)) %" } else { $d += 'Google (8.8.8.8): sin respuesta (puede estar bloqueado por el router o el cortafuegos)' }
+  if ($vari -gt 30) { $e = Sube $e 'Aviso'; $av += "Conexión inestable (la latencia varía $vari ms)" }
   if ($perd -gt 0) { $e = Sube $e 'Aviso'; $av += "Pérdida de paquetes ($perd %)" }
   if ($media -gt 150) { $e = Sube $e 'Aviso'; $av += "Latencia alta ($media ms)" }
   try { [void][System.Net.Dns]::GetHostAddresses('www.microsoft.com'); $d += 'DNS: resuelve nombres correctamente' }
@@ -347,9 +358,54 @@ if ($w) {
   $s = [int]$w.Matches[0].Groups[2].Value
   $d += "Señal Wi-Fi: $s %"
   if ($s -lt 30) { $e = Sube $e 'Aviso'; $av += "Señal Wi-Fi débil ($s %)" }
+  # Estándar y seguridad se reconocen por su valor (802.11ax, WPA2…), que no se traduce; el canal por su etiqueta en español o inglés. Si algo no sale, simplemente no se muestra.
+  $wt = (netsh wlan show interfaces 2>$null) -join "`n"
+  $est = if ($wt -match '802\.11[a-z]+') { $Matches[0] }
+  $seg = if ($wt -match 'WPA\d?(-\w+)?|WEP') { $Matches[0] }
+  $can = if ($wt -match '(?m)^\s*(Canal|Channel)\s*:\s*(\d+)') { [int]$Matches[2] }
+  $banda = if ($can) { if ($can -le 14) { '2,4 GHz' } else { '5 GHz (o 6 GHz)' } }
+  $extra = @(if ($banda) { "banda $banda, canal $can" }; if ($est) { "estándar $est" }; if ($seg) { "seguridad $seg" }) -join ' · '
+  if ($extra) { $d += "Wi-Fi: $extra" }
+  if ($can -and $can -le 14) { $d += 'Consejo: si el router tiene 5 GHz y el equipo está cerca, conectarse a esa banda suele dar más velocidad y menos interferencias.' }
+  if ($seg -match '^(WEP)$') { $e = Sube $e 'Aviso'; $av += 'La red Wi-Fi usa seguridad WEP, que se rompe en minutos' }
 }
 $res = if ($av) { $av -join '. ' } else { 'Conexión correcta' + $(if ($pi.Count) { " · $media ms" } else { '' }) }
 Res $e $res ($d -join "`n")
+'@ },
+
+@{ Id='inicio'; Grupo='Windows'; Nombre='Tiempo de inicio de Windows'; Modo='Rapido'; Seg=20; Codigo=@'
+# Lo guarda el propio Windows (Diagnostics-Performance, suceso 100 al terminar cada inicio): no se mide nada nuevo, solo se lee.
+$log = 'Microsoft-Windows-Diagnostics-Performance/Operational'
+function LeerDatos($ev) { $x = [xml]$ev.ToXml(); $h = @{}; foreach ($n in $x.Event.EventData.Data) { $h[[string]$n.Name] = [string]$n.'#text' }; $h }
+$ini = @(); try { $ini = @(Get-WinEvent -FilterHashtable @{ LogName = $log; Id = 100 } -MaxEvents 6 -ErrorAction Stop) } catch [UnauthorizedAccessException] { return (Res 'Info' 'Para leer los tiempos de inicio hace falta abrir el kit como administrador.') } catch { }
+if (-not $ini) { if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(544)) { return (Res 'Info' 'Para leer los tiempos de inicio hace falta abrir el kit como administrador.') }; return (Res 'Info' 'Windows no tiene tiempos de inicio guardados (registro de rendimiento vacío o desactivado).') }
+if (-not $ini[0].Properties.Count) { return (Res 'Info' 'Los tiempos de inicio guardados no tienen el formato esperado.') }
+$seg = { param($ms) [math]::Round([double]$ms / 1000) }
+$u = LeerDatos $ini[0]
+$total = & $seg $u['BootTime']; $hastaEscritorio = & $seg $u['MainPathBootTime']; $despues = & $seg $u['BootPostBootTime']
+$d = @("Último inicio ($($ini[0].TimeCreated.ToString('dd/MM HH:mm'))): $total s en total · $hastaEscritorio s hasta el escritorio + $despues s cargando programas y servicios")
+if ($ini.Count -gt 1) { $d += 'Inicios anteriores: ' + ((@($ini | Select-Object -Skip 1 | ForEach-Object { "$(& $seg (LeerDatos $_)['BootTime']) s" })) -join ', ') }
+$lentos = @(Get-WinEvent -FilterHashtable @{ LogName = $log; Id = 101; StartTime = $ini[0].TimeCreated.AddMinutes(-3) } -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -le $ini[0].TimeCreated.AddMinutes(5) } | ForEach-Object { $x = LeerDatos $_; [pscustomobject]@{ Nombre = $(if ($x['FriendlyName']) { $x['FriendlyName'] } else { $x['Name'] }); Seg = (& $seg $x['DegradationTime']) } } | Where-Object { $_.Nombre -and $_.Seg -ge 1 } | Sort-Object Seg -Descending | Select-Object -First 5)
+if ($lentos) { $d += 'Lo que más retrasó el último inicio: ' + (($lentos | ForEach-Object { "$($_.Nombre) (+$($_.Seg) s)" }) -join ' · ') }
+$d += 'Con el inicio rápido de Windows activado, un apagado normal es una hibernación: los tiempos solo reflejan un inicio completo tras reiniciar.'
+$e = 'OK'; $aviso = ''
+if ($total -ge 180) { $e = 'Fallo'; $aviso = "Inicio muy lento ($total s)" } elseif ($total -ge 100) { $e = 'Aviso'; $aviso = "Inicio lento ($total s)" }
+$res = if ($aviso) { "${aviso}: $hastaEscritorio s hasta el escritorio + $despues s de programas" + $(if ($lentos) { ". Lo que más retrasa: $($lentos[0].Nombre)" } else { '' }) } else { "Inicio en $total s ($hastaEscritorio s hasta el escritorio + $despues s de programas)" }
+Res $e $res ($d -join "`n") @{ InicioSeg = $total; InicioHastaEscritorioSeg = $hastaEscritorio; InicioProgramasSeg = $despues }
+'@ },
+
+@{ Id='wifi_cortes'; Grupo='Red'; Nombre='Cortes del Wi-Fi (7 días)'; Modo='Rapido'; Seg=15; Codigo=@'
+# Desconexiones que apunta Windows (WLAN-AutoConfig, suceso 8003). Incluyen las normales al suspender el equipo o cambiar de red.
+$wifi = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.PhysicalMediaType -match '802\.11' })
+if (-not $wifi) { return (Res 'Info' 'Este equipo no tiene Wi-Fi (o está desactivado).') }
+$desde = (Get-Date).AddDays(-7)
+$ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-WLAN-AutoConfig/Operational'; Id = 8003; StartTime = $desde } -ErrorAction SilentlyContinue)
+if (-not $ev) { return (Res 'OK' 'Sin cortes del Wi-Fi en los últimos 7 días' "Adaptador: $($wifi[0].InterfaceDescription)`nNo hay desconexiones anotadas en 7 días.") }
+$dias = @($ev | Group-Object { $_.TimeCreated.Date } | Sort-Object { [datetime]$_.Name } | ForEach-Object { "$(([datetime]$_.Name).ToString('dd/MM')): $($_.Count)" })
+$d = @("Adaptador: $($wifi[0].InterfaceDescription)", "Desconexiones en 7 días: $($ev.Count) (por día: $($dias -join ' · '))", "Última: $($ev[0].TimeCreated.ToString('dd/MM HH:mm'))", 'Incluyen las normales al suspender el equipo, cambiar de red o apagar el Wi-Fi a mano.')
+$e = 'OK'; $r = "$($ev.Count) desconexión(es) del Wi-Fi en 7 días"
+if ($ev.Count -ge 30) { $e = 'Aviso'; $r = "Wi-Fi inestable: $($ev.Count) desconexiones en 7 días" } elseif ($ev.Count -ge 15) { $e = 'Aviso'; $r = "Bastantes cortes del Wi-Fi: $($ev.Count) en 7 días" }
+Res $e $r ($d -join "`n") @{ WifiCortes7d = $ev.Count }
 '@ },
 
 @{ Id='eventos'; Grupo='Registros'; Nombre='Errores graves y apagados inesperados'; Modo='Rapido'; Seg=12; Codigo=@'
@@ -382,7 +438,7 @@ if (-not (Test-Path -LiteralPath $smartctl)) { return (Res 'Info' 'smartmontools
 $scan = (& $smartctl --scan 2>&1 | Out-String)
 $devs = @(); foreach ($l in ($scan -split "`n")) { if ($l -match '^(\S+)\s+-d\s+(\S+)') { $devs += [pscustomobject]@{ Dev = $matches[1]; Tipo = $matches[2] } } }
 if (-not $devs) { return (Res 'Info' 'smartctl no encontró discos (probablemente faltan permisos de administrador).' $scan) }
-$e = 'OK'; $av = @(); $d = @(); $m = @{}; $i = 0; $vistos = @{}
+$e = 'OK'; $av = @(); $d = @(); $m = @{}; $i = 0; $vistos = @{}; $saludes = @()
 foreach ($dv in $devs) {
   $raw = (& $smartctl -a -j $dv.Dev -d $dv.Tipo 2>&1 | Out-String)
   try { $j = $raw | ConvertFrom-Json } catch { $d += "$($dv.Dev): no se pudo leer ($($raw.Substring(0, [Math]::Min(120, $raw.Length))))"; continue }
@@ -400,7 +456,10 @@ foreach ($dv in $devs) {
     $n = $j.nvme_smart_health_information_log
     $d += "   NVMe: aviso crítico $($n.critical_warning) · repuesto disponible $($n.available_spare) % (umbral $($n.available_spare_threshold) %) · uso $($n.percentage_used) %"
     $d += "   Errores de medio: $($n.media_errors) · entradas de error: $($n.num_err_log_entries) · apagados inesperados: $($n.unsafe_shutdowns) · ciclos de encendido: $($n.power_cycles)"
-    if ($n.data_units_written) { $d += ("   Datos escritos: {0:N1} TB" -f ($n.data_units_written * 512000 / 1TB)) }
+    $escTB = if ($n.data_units_written) { $n.data_units_written * 512000 / 1TB } else { $null }
+    if ($null -ne $escTB) { $d += ("   Datos escritos: {0:N1} TB" -f $escTB) }
+    $saludPct = 100 - [int]$n.percentage_used; $saludes += $saludPct
+    $d += "   Salud del SSD: $saludPct % de vida restante$(if ($null -ne $escTB -and $n.percentage_used -ge 1) { ' · le quedan unos {0:N0} TB de escritura (estimación a partir del desgaste actual)' -f ($escTB * (100 - $n.percentage_used) / $n.percentage_used) } else { ' (con tan poco uso aún no se puede estimar cuánto aguantará)' })"
     if ($n.critical_warning -gt 0) { $e = 'Fallo'; $av += "${nom}: aviso crítico NVMe ($($n.critical_warning))" }
     if ($n.media_errors -gt 0) { $e = Sube $e 'Aviso'; $av += "${nom}: $($n.media_errors) errores de medio" }
     if ($n.available_spare -lt $n.available_spare_threshold) { $e = 'Fallo'; $av += "${nom}: repuesto por debajo del umbral" }
@@ -417,12 +476,12 @@ foreach ($dv in $devs) {
     if ($crcV -gt 0) { $e = Sube $e 'Aviso'; $av += "${nom}: errores CRC ($crcV): revisa el cable SATA" }
     $vida = $null; foreach ($id in 231, 233) { if ($tab[$id]) { $vida = [int]$tab[$id].value } }
     if ($null -eq $vida -and $tab[177]) { $vida = [int]$tab[177].value }
-    if ($null -ne $vida) { $d += "   Vida restante estimada (SSD): $vida %"; if ($vida -le 10) { $e = 'Fallo'; $av += "${nom}: vida restante $vida %" } elseif ($vida -le 25) { $e = Sube $e 'Aviso'; $av += "${nom}: vida restante $vida %" } }
+    if ($null -ne $vida) { $saludes += $vida; $d += "   Vida restante estimada (SSD): $vida %"; if ($vida -le 10) { $e = 'Fallo'; $av += "${nom}: vida restante $vida %" } elseif ($vida -le 25) { $e = Sube $e 'Aviso'; $av += "${nom}: vida restante $vida %" } }
     $metricas = @{ SmartReasignados = $reaV; SmartPendientes = $penV; SmartDesgastePct = $(if ($null -ne $vida) { 100 - $vida } else { $null }); SmartHoras = $h }
   } else { $d += '   Este disco no expone atributos SMART detallados.' }
   if ($i -eq 0) { $m = $metricas }; $i++
 }
-$res = if ($av) { $av -join '. ' } else { "$i disco(s) con SMART correcto" }
+$res = if ($av) { $av -join '. ' } else { "$i disco(s) con SMART correcto" + $(if ($saludes.Count) { " · salud del SSD $(($saludes | Measure-Object -Minimum).Minimum) %" } else { '' }) }
 Res $e $res ($d -join "`n") $m
 '@ },
 
@@ -562,14 +621,16 @@ try {
   $fs.Close(); $sw.Stop()
   $r = [math]::Round($mb / $sw.Elapsed.TotalSeconds)
 } finally { Remove-Item $ruta -Force -ErrorAction SilentlyContinue }
-$d = "Escritura secuencial: $w MB/s`nLectura secuencial: $r MB/s (puede estar ayudada por la caché)`nPrueba rápida en $env:TEMP; para medidas precisas usa CrystalDiskMark."
+$m = [math]::Min($w, $r)
+$tipo = if ($m -lt 40) { 'más lento que un disco mecánico' } elseif ($m -lt 200) { 'como un disco mecánico' } elseif ($m -lt 800) { 'como un SSD SATA' } elseif ($m -lt 2000) { 'como un SSD NVMe de gama media' } else { 'como un SSD NVMe rápido' }
+$d = "Escritura secuencial: $w MB/s`nLectura secuencial: $r MB/s (puede estar ayudada por la caché)`nRinde $tipo. Referencia: disco mecánico 100-200 MB/s · SSD SATA unos 550 · SSD NVMe 2000 o más.`nPrueba rápida en $env:TEMP; para medidas precisas usa CrystalDiskMark."
 if ($w -lt 10 -or $r -lt 10) { return (Res 'Fallo' "Disco extremadamente lento (escritura $w MB/s, lectura $r MB/s)" $d) }
 if ($w -lt 40 -or $r -lt 40) { return (Res 'Aviso' "Disco lento (escritura $w MB/s, lectura $r MB/s)" $d) }
-Res 'OK' "Escritura $w MB/s · lectura $r MB/s" $d
+Res 'OK' "Escritura $w MB/s · lectura $r MB/s · rinde $tipo" $d @{ EscrituraMBs = $w; LecturaMBs = $r }
 '@ },
 
 @{ Id='chkdsk'; Grupo='Almacenamiento'; Nombre='Comprobación del sistema de archivos (C:)'; Modo='Completo'; Seg=120; Codigo=@'
-$r = "$(Repair-Volume -DriveLetter C -Scan)"
+$r = "$(Repair-Volume -DriveLetter ($env:SystemDrive.TrimEnd(':')) -Scan)"   # la unidad del sistema, no siempre es C:
 if ($r -eq 'NoErrorsFound') { return (Res 'OK' 'No se encontraron errores en la unidad C:' "Resultado: $r") }
 Res 'Fallo' "Se detectaron errores en la unidad C: ($r). Ejecuta chkdsk /f tras guardar tus datos." "Resultado: $r"
 '@ },

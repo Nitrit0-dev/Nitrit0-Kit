@@ -87,8 +87,8 @@ if ($ActualRes -and $null -ne $ActualRes.Ms) {
 
 # --- Equipos de dominio: el DNS lo da el servidor de la empresa
 $enDominio = $false; try { $enDominio = [bool](Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).PartOfDomain } catch { }
+if ($SoloAnalizar) { Exit-Kit 'Ok' ("Modo análisis: el DNS más rápido sería $($Mejor.Nombre) ($($Mejor.Ips -join ' / ')); no se ha cambiado nada." + $(if ($enDominio) { ' El equipo está en un dominio: al aplicar no se cambiaría.' } else { '' })) }
 if ($enDominio) { Write-Output "$($E.Aviso) El equipo está en un dominio: su DNS lo necesita para encontrar el servidor de la empresa. No se cambia."; Write-Log 'DNS más rápido: dominio, no se cambia' 'WARN'; exit 2 }
-if ($SoloAnalizar) { Exit-Kit 'Ok' "Modo análisis: el DNS más rápido sería $($Mejor.Nombre) ($($Mejor.Ips -join ' / ')); no se ha cambiado nada." }
 $admin = Test-EsAdmin
 if (-not $admin -and -not ($SinPreguntas -and -not $Aplicar)) { Exit-Kit 'Error' 'Hace falta administrador para aplicar el DNS (sin él solo se puede medir con -SinPreguntas). Abre el kit como administrador.' }
 

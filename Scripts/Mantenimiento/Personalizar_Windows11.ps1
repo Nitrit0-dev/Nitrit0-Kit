@@ -129,8 +129,8 @@ function Set-NombreUsuarioLocal {
         if ($NombreLogin -ieq $PcComparar) {
             Write-Output "  $($E.Info) Como el PC también se llama '$PcComparar', Windows usa '$Nuevo' en el Menú Inicio y conserva '$Actual' como identificador interno."
         } elseif ([string]$cuenta.PrincipalSource -eq 'Local' -and $NombreLogin -and $Actual -cne $NombreLogin) {
-            Rename-LocalUser -Name $Actual -NewName $NombreLogin -ErrorAction SilentlyContinue
-            Write-Output "  $($E.OK) Cuenta local renombrada internamente: '$Actual' -> '$NombreLogin'."
+            try { Rename-LocalUser -Name $Actual -NewName $NombreLogin -ErrorAction Stop; Write-Output "  $($E.OK) Cuenta local renombrada internamente: '$Actual' -> '$NombreLogin'." }
+            catch { Write-Output "  $($E.Aviso) No se pudo renombrar la cuenta local '$Actual': $($_.Exception.Message)" }   # antes decía «OK» aunque fallara
         }
         return $true
     } catch {
@@ -182,7 +182,7 @@ function Set-ClaveUsuarioLocal {
 # Detectar el usuario interactivo real (dueño de explorer.exe)
 $UsuarioActual = $env:USERNAME
 try {
-    $Exp = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $Exp = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Sort-Object { if ($_.SessionId -eq (Get-Process -Id $PID).SessionId) { 0 } else { 1 } } | Select-Object -First 1
     if ($Exp) {
         $Own = Invoke-CimMethod -InputObject $Exp -MethodName GetOwner -ErrorAction SilentlyContinue
         if ($Own -and $Own.User) { $UsuarioActual = $Own.User }
@@ -310,7 +310,7 @@ if ($irreversible.Count -and -not (Confirm-Accion ("«Deshacer cambios» no pued
 $ReinicioExplorer = $false
 $RaizUsuario = "HKCU:"
 try {
-    $Explorer = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $Explorer = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Sort-Object { if ($_.SessionId -eq (Get-Process -Id $PID).SessionId) { 0 } else { 1 } } | Select-Object -First 1
     if ($Explorer) {
         $SidUsuario = (Invoke-CimMethod -InputObject $Explorer -MethodName GetOwnerSid -ErrorAction SilentlyContinue).Sid
         if ($SidUsuario -and (Test-Path "Registry::HKEY_USERS\$SidUsuario")) { $RaizUsuario = "Registry::HKEY_USERS\$SidUsuario" }
@@ -404,17 +404,19 @@ if ($script:Opc.UsuarioNuevo) {
 
 # 3. Renombrar el PC si se solicitó
 if ($script:Opc.NombreNuevo -and $script:Opc.NombreNuevo -ine $env:COMPUTERNAME) {
-    try {
+    if ((Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue).PartOfDomain) {
+        Write-Output "  $($E.Aviso) El equipo está en un dominio: el nombre del PC no se cambia desde aquí."
+    } else { try {
         Save-Cambio @{ Tipo = 'NombrePC'; Previo = $env:COMPUTERNAME }
         Rename-Computer -NewName $script:Opc.NombreNuevo -Force -ErrorAction Stop
         Write-Output "  $($E.OK) Nombre del PC cambiado a '$($script:Opc.NombreNuevo)' (se aplica al reiniciar)."
         $RequiereReinicio = $true
-    } catch { Write-Output "  $($E.Error) No se pudo cambiar el nombre del PC: $($_.Exception.Message)" }
+    } catch { Write-Output "  $($E.Error) No se pudo cambiar el nombre del PC: $($_.Exception.Message)" } }
 }
 
 if ($RequiereReinicio -and $script:Opc.Reiniciar) {
     & shutdown.exe /r /t 30 /c "Aplicando nuevo nombre de equipo/usuario en 30 segundos"
-    Write-Output "  $($E.Reloj) Reinicio programado en 30 segundos."
+    Write-Output "  $($E.Reloj) Reinicio programado en 30 segundos. Para anularlo: shutdown /a"
 } elseif ($RequiereReinicio) {
     Write-Output "  $($E.Aviso) Cierra sesión o reinicia el equipo para ver el nuevo nombre en el Menú Inicio."
 }

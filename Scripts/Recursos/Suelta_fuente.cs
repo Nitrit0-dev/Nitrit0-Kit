@@ -11,7 +11,7 @@ using System.Reflection;
 static class Suelta {
     static string Q(string x) { return "'" + x.Replace("'", "''") + "'"; }
     static int Main() {
-        string dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+        string dir = AppDomain.CurrentDomain.BaseDirectory;   // sin TrimEnd: en la raíz de una unidad (E:\\) quedaría E: y Path.Combine daría una ruta relativa
         string comun = Path.Combine(dir, "Scripts\\Comun.ps1"), script = Path.Combine(dir, "Scripts\\Mantenimiento\\@SCRIPT@");
         Console.Title = "@TITULO@ - Nitrit0";
         if (!File.Exists(comun) || !File.Exists(script)) { Console.WriteLine("Faltan archivos junto al programa (carpeta Scripts). Vuelve a copiar la carpeta completa."); Console.ReadKey(true); return 1; }

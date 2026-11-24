@@ -52,7 +52,7 @@ export default function App() {
       const n = (k: string) => (typeof ev[k] === 'number' ? (ev[k] as number) : 0)
       if (ev.op === 'Analizar') {
         if (ev.evento === 'categoria') {
-          const c: Categoria = { id: t('id'), grupo: t('grupo'), nombre: t('nombre'), ayuda: t('ayuda'), marcada: ev.marcada === true, riesgo: t('riesgo'), bytes: n('bytes'), archivos: n('archivos'), admin: ev.admin === true }
+          const c: Categoria = { id: t('id'), grupo: t('grupo'), nombre: t('nombre'), ayuda: t('ayuda'), marcada: ev.marcada === true, riesgo: t('riesgo'), bytes: n('bytes'), archivos: n('archivos'), admin: ev.admin === true, abiertos: Array.isArray(ev.abiertos) ? (ev.abiertos as unknown[]).filter((x): x is string => typeof x === 'string') : [] }
           setCats((l) => [...l.filter((x) => x.id !== c.id), c])
           if (primeraSeleccion.current && c.marcada) setSel((s) => new Set(s).add(c.id))
         }
@@ -112,7 +112,7 @@ export default function App() {
     setOcupado(true); setFaseReg('limpiando'); setSalidaReg([])
     const r = await window.limpieza.motor('RegistroLimpiar', { modo })
     if (!r.ok && r.mensaje) setPie(r.mensaje)
-    setFaseReg('hecho'); setOcupado(false)
+    setFaseReg(r.codigo === null ? 'listo' : 'hecho'); setOcupado(false)   // codigo null: el motor rechazó la petición o no llegó a arrancar; no se dice «hecho»
   }
   const desinstalar = async (lista: Programa[]) => {
     const quien = lista.length === 1 ? lista[0].nombre : `${lista.length} programas`
@@ -130,12 +130,13 @@ export default function App() {
     const ids = cats.filter((c) => sel.has(c.id) && (!c.admin || admin)).map((c) => c.id)
     const r = await window.limpieza.motor('Limpiar', { ids })
     if (!r.ok && r.mensaje) setPie(r.mensaje)
-    setFase('hecho'); setOcupado(false)
+    setFase(r.codigo === null ? 'listo' : 'hecho'); setOcupado(false)   // codigo null: el motor rechazó la petición o no llegó a arrancar; no se dice «hecho»
   }
   const cambiarInicio = async (it: ItemInicio, activar: boolean) => {
     setOcupado(true); setPie('')
     const r = await window.limpieza.motor('InicioCambiar', { tipo: it.tipo, id: it.id, activar })
     if (r.ok) { setItems((l) => (l ?? []).map((x) => (x.id === it.id && x.tipo === it.tipo ? { ...x, activo: activar } : x))); setPie(`${it.nombre}: ${activar ? 'volverá a cargarse' : 'ya no se cargará'} al iniciar Windows.`) }
+    else if (r.mensaje) setPie((p) => p || r.mensaje)   // si el propio motor ya explicó el fallo se conserva; si se rechazó antes de arrancar, esto es lo único que verá la persona
     setOcupado(false)
   }
 
@@ -150,14 +151,14 @@ export default function App() {
     <div className="app">
       <div className="barra-titulo"><img src={logo} alt="" /><b>Nitrit0 Limpieza</b></div>
       <nav className="lateral" aria-label="Secciones">
-        {nav.map((n) => <button key={n.id} className="nav" aria-current={vista === n.id ? 'page' : undefined} onClick={() => setVista(n.id)}>{n.icono}{n.texto}</button>)}
+        {nav.map((n) => <button key={n.id} className="nav" disabled={ocupado && vista !== n.id} aria-current={vista === n.id ? 'page' : undefined} onClick={() => setVista(n.id)}>{n.icono}{n.texto}</button>)}
         <div className="pie-lateral">
           {admin !== null && <div className={`nota-admin ${admin ? '' : 'aviso'}`}>{admin ? 'Con permisos de administrador' : 'Sin administrador: no se pueden limpiar los temporales de Windows ni cambiar programas de todos los usuarios'}</div>}
         </div>
       </nav>
       <main className="principal">
         <ErrorBoundary>
-          {vista === 'limpiador' && <Limpiador cats={cats} sel={sel} alSel={setSel} fase={fase} resultados={resultados} liberado={liberado} avisos={avisos} admin={admin === true} ocupado={ocupado} alAnalizar={() => void analizar()} alLimpiar={() => void limpiar()} />}
+          {vista === 'limpiador' && <Limpiador cats={cats} sel={sel} alSel={setSel} fase={fase} resultados={resultados} liberado={liberado} avisos={avisos} admin={admin === true} ocupado={ocupado} alAnalizar={() => void analizar()} alLimpiar={() => void limpiar()} alCancelar={() => void window.limpieza.cancelarAnalisis()} />}
           {vista === 'programas' && <Programas lista={programas} admin={admin === true} ocupado={ocupado} marcha={desMarcha} salida={salidaDes} alRecargar={() => void cargarProgramas()} alDesinstalar={(l) => void desinstalar(l)} />}
           {vista === 'registro' && <Registro restos={restos} salida={salidaReg} fase={faseReg} admin={admin === true} ocupado={ocupado} alAnalizar={() => void analizarRegistro()} alLimpiar={(m) => void limpiarRegistro(m)} />}
           {vista === 'inicio' && <Inicio items={items} arranque={arranque} admin={admin === true} ocupado={ocupado} alRecargar={() => void cargarInicio()} alCambiar={(it, on) => void cambiarInicio(it, on)} />}

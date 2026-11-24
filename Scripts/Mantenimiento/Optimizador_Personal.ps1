@@ -80,7 +80,7 @@ function Set-ValorRegistro {
         else { New-Item -Path $Ruta -Force -ErrorAction Stop | Out-Null }
 
         Set-ItemProperty -LiteralPath $Ruta -Name $Nombre -Value $Valor -Type $Tipo -ErrorAction Stop
-        $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Registro'; Ruta = $Ruta; Nombre = $Nombre; Existia = $existia; Valor = $previo; TipoValor = $tipoPrevio })
+        $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Registro'; Ruta = $Ruta; Nombre = $Nombre; Existia = $existia; Valor = $previo; TipoValor = $tipoPrevio }); Sync-Respaldo
         $script:Aplicados++
         return $true
     }
@@ -103,7 +103,7 @@ function Set-ServicioInicio {
     if (-not $actual -or $actual -eq $Tipo) { return }
     try {
         Set-Service -Name $Nombre -StartupType $Tipo -ErrorAction Stop
-        $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Servicio'; Nombre = $Nombre; Previo = $actual })
+        $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Servicio'; Nombre = $Nombre; Previo = $actual }); Sync-Respaldo
         $script:Aplicados++
         Write-Output "  $($E.OK) Servicio $Nombre -> $Tipo (antes: $actual)."
     }
@@ -135,7 +135,7 @@ function Set-PlanEnergia {
         $anterior = Get-PlanEnergiaActivo
         & powercfg.exe /setactive $Guid 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { Write-Output "$($E.Error) No se pudo activar '$Nombre' (código $LASTEXITCODE)."; return }
-        if ($anterior -and $anterior -ne $Guid) { $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Energia'; Guid = $anterior }) }
+        if ($anterior -and $anterior -ne $Guid) { $script:Respaldo.Add([pscustomobject]@{ Tipo = 'Energia'; Guid = $anterior }); Sync-Respaldo }
         $script:Aplicados++
         $script:PlanOk = $true
         Write-Output "$($E.OK) Plan de energía '$Nombre' activado."
@@ -154,13 +154,10 @@ function New-PuntoRestauracion {
     param([Parameter(Mandatory = $true)][string]$Modo)
 
     Write-Output "$($E.Reloj) Creando punto de restauración antes del modo '$Modo'..."
-    try {
-        Checkpoint-Computer -Description "Optimizador Personal - $Modo" -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null
-        Write-Output "$($E.OK) Punto de restauración creado."
-        $script:EstadoPunto = 'Creado'
-    }
-    catch {
-        Write-Output "$($E.Aviso) No se pudo crear (límite de 24 h o protección del sistema desactivada). Se continúa: los cambios quedan respaldados para el modo Revertir."
+    # New-PuntoRestauracionSeguro (Comun.ps1) corta a los 3 minutos: Checkpoint-Computer a secas se cuelga si el servicio de instantáneas (VSS) está atascado
+    if (New-PuntoRestauracionSeguro "Optimizador Personal - $Modo") { $script:EstadoPunto = 'Creado' }
+    else {
+        Write-Output "$($E.Aviso) Se continúa sin punto de restauración: los cambios quedan respaldados para el modo Revertir."
         $script:EstadoPunto = 'No se pudo crear'
     }
 }
@@ -171,12 +168,16 @@ function Save-Respaldo {
 
     if ($script:Respaldo.Count -eq 0) { return $null }
     try {
-        $ruta = Join-Path -Path (Get-CarpetaRespaldos) -ChildPath ("Optimizador_Respaldo_{0}_{1}.json" -f $Modo, (Get-Date -Format 'yyyyMMdd_HHmmss'))
-        ConvertTo-Json -InputObject @($script:Respaldo.ToArray()) -Depth 4 | Set-Content -LiteralPath $ruta -Encoding UTF8 -ErrorAction Stop
-        return $ruta
+        # El nombre lleva el equipo: los respaldos viajan en el pendrive de cliente en cliente y Revertir solo debe ofrecer los de este PC
+        if (-not $script:RutaRespaldoActual) { $script:RutaRespaldoActual = Join-Path -Path (Get-CarpetaRespaldos) -ChildPath ("Optimizador_Respaldo_{0}_{1}_{2}.json" -f $Modo, (Get-Date -Format 'yyyyMMdd_HHmmss'), $env:COMPUTERNAME) }
+        ConvertTo-Json -InputObject @($script:Respaldo.ToArray()) -Depth 4 | Set-Content -LiteralPath $script:RutaRespaldoActual -Encoding UTF8 -ErrorAction Stop
+        return $script:RutaRespaldoActual
     }
     catch { Write-Warning "No se pudo guardar el respaldo: $($_.Exception.Message)"; return $null }
 }
+# El respaldo se guarda tras CADA cambio, no solo al final: si el proceso se corta a la fuerza (cancelar mata el árbol y el «finally» no corre), lo ya cambiado sigue siendo revertible
+$script:RutaRespaldoActual = $null
+function Sync-Respaldo { [void](Save-Respaldo -Modo $Modo) }
 
 # ---------------------------------------------------------------------
 #  Ventanas
@@ -389,7 +390,7 @@ function Invoke-Analisis {
 
     $plan = ((& powercfg.exe /getactivescheme 2>&1) | Out-String).Trim()
     Write-Output "  $($E.Info) $plan"
-    if ($plan -match 'ahorro|Power saver|Economizador' -and -not (Test-EsPortatil)) { $recomendaciones.Add('Plan de ahorro de energía en un sobremesa: usa el modo Normal o Juego.') }
+    if ($plan -match 'a1841308-3541-4fab-bc81-f71556f20b4a' -and -not (Test-EsPortatil)) { $recomendaciones.Add('Plan de ahorro de energía en un sobremesa: usa el modo Normal o Juego.') }
 
     $arranque = @(Get-EntradaArranque | Where-Object { $_.Habilitado })
     Write-Output "  $($E.Info) Programas que arrancan con Windows: $($arranque.Count)."
@@ -441,7 +442,7 @@ function Invoke-LimpiezaTemporales {
     $libreAntes = (Get-PSDrive -Name $unidad -ErrorAction SilentlyContinue).Free
 
     $rutas = New-Object System.Collections.Generic.List[string]
-    foreach ($r in @($env:TEMP, "$env:LOCALAPPDATA\Microsoft\Windows\INetCache", "$env:SystemRoot\Temp", 'C:\Temp',
+    foreach ($r in @($env:TEMP, "$env:LOCALAPPDATA\Microsoft\Windows\INetCache", "$env:SystemRoot\Temp",   # C:\Temp no se toca: no es de Windows y en oficinas la crean a mano para trabajo temporal
             "$env:LOCALAPPDATA\CrashDumps", "$env:ProgramData\Microsoft\Windows\WER\ReportQueue", "$env:ProgramData\Microsoft\Windows\WER\Temp")) { $rutas.Add($r) }
 
     # Cachés de navegadores (solo caché: no se tocan cookies, contraseñas ni historial). Se omite el que esté abierto.
@@ -487,8 +488,8 @@ function Invoke-LimpiezaTemporales {
     }
 
     # Borrado definitivo de todas las cuentas: se pregunta siempre que haya ventana (Confirm-Accion acepta solo en revisión automática)
-    if (Confirm-Accion "Se vaciará la Papelera de TODAS las cuentas del equipo. Los archivos que contiene no se podrán recuperar.`n`n¿Vaciarla?" 'Vaciar Papelera') {
-        try { Clear-RecycleBin -Force -ErrorAction Stop; Write-Output "  $($E.OK) Papelera vaciada." }
+    if (Confirm-Accion "Se vaciará la Papelera de la unidad del sistema (todas las cuentas). Los archivos que contiene no se podrán recuperar.`n`n¿Vaciarla?" 'Vaciar Papelera') {
+        try { Clear-RecycleBin -DriveLetter $env:SystemDrive.TrimEnd(':') -Force -ErrorAction Stop; Write-Output "  $($E.OK) Papelera vaciada." }
         catch { Write-Output "  $($E.Info) Papelera: nada que vaciar o no accesible." }
     } else { Write-Output "  $($E.Info) Papelera: se deja como está." }
 
@@ -649,8 +650,7 @@ function Invoke-ModoPrivacidad {
         Write-Output "  $($E.Info) Ubicación desactivada por directiva: «Encontrar mi dispositivo» y Mapas no podrán localizar el equipo (Revertir quita el valor; la clave vacía puede quedar)."
     }
 
-    # Sincronización automática de OneDrive
-    [void](Set-ValorRegistro -Ruta 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' -Nombre 'DisableFileSyncNGSC' -Valor 1 -Tipo 'DWord' -Opcional)
+    # OneDrive: ya no se desactiva su sincronización (DisableFileSyncNGSC): en equipos de clientes que guardan Escritorio y Documentos en OneDrive dejaba de hacer copias en la nube sin avisar
 
     Write-Output "$($E.OK) Privacidad ajustada: $($script:Aplicados) cambios, $($script:Rechazados) rechazados por Windows."
     Write-Output "$($E.Info) No se eliminan Prefetch ni ETLLogs. Reinicia Explorer o el equipo para ver las extensiones."
@@ -680,7 +680,7 @@ function Set-ValorPlanEnergia {
     if ($ok -and $null -ne $Dc) { & powercfg.exe /setdcvalueindex $plan $Subgrupo $Ajuste $Dc 2>&1 | Out-Null; $ok = ($LASTEXITCODE -eq 0) }
     if (-not $ok) { $script:Rechazados++; Write-Output "  $($E.Aviso) powercfg no pudo cambiar el ajuste ${Ajuste}."; return }
     & powercfg.exe /setactive $plan 2>&1 | Out-Null
-    $script:Respaldo.Add([pscustomobject]@{ Tipo = 'PowerCfg'; Plan = $plan; Subgrupo = $Subgrupo; Ajuste = $Ajuste; Ac = $acPrevio; Dc = $dcPrevio; TocoDc = ($null -ne $Dc) })
+    $script:Respaldo.Add([pscustomobject]@{ Tipo = 'PowerCfg'; Plan = $plan; Subgrupo = $Subgrupo; Ajuste = $Ajuste; Ac = $acPrevio; Dc = $dcPrevio; TocoDc = ($null -ne $Dc) }); Sync-Respaldo
     $script:Aplicados++
 }
 
@@ -819,8 +819,11 @@ function Invoke-Revertir {
     Write-Output "`n$($E.Refresh) REVERTIR UN MODO ANTERIOR..."
     $carpeta = $null
     try { $carpeta = Get-CarpetaRespaldos } catch { Write-Output "$($E.Error) No se pudo abrir la carpeta de respaldos: $($_.Exception.Message)"; return }
-    $archivos = @(Get-ChildItem -LiteralPath $carpeta -Filter 'Optimizador_Respaldo_*.json' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
-    if ($archivos.Count -eq 0) { Write-Output "$($E.Aviso) No hay respaldos en $carpeta. Solo se pueden revertir modos aplicados con esta versión."; return }
+    # Solo los respaldos de ESTE equipo (el nombre termina en _EQUIPO.json): aplicar el de otro PC cambiaría servicios, energía y registro por valores que no son los suyos
+    $todos = @(Get-ChildItem -LiteralPath $carpeta -Filter 'Optimizador_Respaldo_*.json' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+    $archivos = @($todos | Where-Object { $_.Name -like "*_$($env:COMPUTERNAME).json" })
+    if ($todos.Count -gt $archivos.Count) { Write-Output "$($E.Info) $($todos.Count - $archivos.Count) respaldo(s) de otros equipos o de versiones antiguas (sin equipo en el nombre) no se ofrecen aquí." }
+    if ($archivos.Count -eq 0) { Write-Output "$($E.Aviso) No hay respaldos de este equipo en $carpeta. Solo se pueden revertir modos aplicados con esta versión en este PC."; return }
 
     Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
     Add-Type -AssemblyName System.Drawing -ErrorAction Stop

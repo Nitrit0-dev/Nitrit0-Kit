@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { PageHeader, Medidor, Tarjeta } from '../componentes/Basicos'
+import PanelRendimiento from '../componentes/PanelRendimiento'
+import { Bichobit } from '../componentes/Bichobit'
+import { NOMBRE_ETAPA, etapaGuardada, leerCriatura, restaurarCriatura } from '../componentes/criatura'
 import { usaEjecutor, verbo, type Elemento, type Resumen, type Tono, type Vivo } from '../tipos'
 import { diasEncendido, leerResumen, numero as num, resumenCaducado, resumenGuardado } from '../equipo'
 
@@ -37,6 +40,7 @@ const saludTexto = (s: string) => (s === 'Healthy' ? 'Sin avisos' : s === 'Warni
 export default function Inicio({ elementos, favoritas, alLanzar, ocupado, encolar = false, alDiagnostico, alEquilibrio }: {
   elementos: Elemento[]; favoritas: string[]; alLanzar: (e: Elemento) => void; ocupado: boolean; encolar?: boolean; alDiagnostico: () => void; alEquilibrio: () => void
 }) {
+  const [winVersion, setWinVersion] = useState<'buscando' | { estado: 'al-dia' | 'hay-nueva' | 'error'; titulo?: string } | null>(null)
   const [r, setR] = useState<Resumen | null>(resumenGuardado())
   const [v, setV] = useState<Vivo | null>(null)
   const [fallo, setFallo] = useState('')
@@ -52,6 +56,8 @@ export default function Inicio({ elementos, favoritas, alLanzar, ocupado, encola
       .finally(() => setLeyendo(false))
   }
   useEffect(() => { if (resumenCaducado()) cargar() }, [])
+  const [, setCriaturaV] = useState(0)   // fuerza repintar cuando Bichobit se recupera de la copia del pendrive
+  useEffect(() => { const e = r?.equipo; if (e) void restaurarCriatura(e).then((ok) => { if (ok) setCriaturaV((n) => n + 1) }) }, [r?.equipo])
   useEffect(() => {
     const t = () => window.kit.vivo().then(setV)
     void t()
@@ -72,6 +78,7 @@ export default function Inicio({ elementos, favoritas, alLanzar, ocupado, encola
   const dias = diasEncendido(r)
   const favs = favoritas.map((t) => elementos.find((e) => e.titulo === t)).filter((e): e is Elemento => !!e && e.soportado && e.disponible)
   const equipo = r.equipo || 'este equipo'
+  const criatura = r.equipo ? leerCriatura(r.equipo) : null
   /** Resumen para pegar al pedir ayuda: nunca lleva el nombre del equipo ni números de serie. */
   const copiarResumen = async () => {
     const t = [`RESUMEN ${new Date().toLocaleString('es-ES')}`, `Equipo: ${r.modelo}`, `Windows: ${r.windows} ${r.version}${r.arquitectura ? ` (${r.arquitectura})` : ''}`, `Placa: ${r.placa ?? '-'} · BIOS ${r.bios}${r.biosFecha ? ` (${r.biosFecha})` : ''}`,
@@ -94,6 +101,13 @@ export default function Inicio({ elementos, favoritas, alLanzar, ocupado, encola
         </>}
       />
       {fallo && <p className="aviso-txt" role="alert">No se pudo actualizar los datos: {fallo}</p>}
+      {criatura && (
+        <section className="bloque bichobit-inicio" aria-label="Bichobit">
+          <Bichobit etapa={etapaGuardada(criatura)} piezas={criatura.piezas} escala={6} />
+          <div><h2>Bichobit de {equipo}</h2><p className="nota-vacia">{NOMBRE_ETAPA[etapaGuardada(criatura)]} desde la revisión del {new Date(criatura.fecha).toLocaleDateString('es-ES')}. Cada pieza muestra cómo salió su parte del equipo.</p></div>
+        </section>
+      )}
+      <PanelRendimiento r={r} v={v} />
       <div className="inicio">
         <div className="columna">
           <section className="bloque" aria-label="Revisiones">
@@ -135,7 +149,17 @@ export default function Inicio({ elementos, favoritas, alLanzar, ocupado, encola
           </section>
         </div>
         <div className="columna">
-          <Tarjeta titulo="Sistema" datos={[['Windows', r.windows], ['Versión', r.version && <span className="num">{r.version}</span>], ['Arquitectura', r.arquitectura], ['Instalado el', r.instalado && <span className="num">{r.instalado}</span>], ['Encendido hace', Number.isFinite(dias) ? <span className="num">{dias < 1 ? `${Math.max(1, Math.round(dias * 24))} h` : `${num(dias)} días`}</span> : '']]} />
+          <Tarjeta titulo="Sistema" datos={[['Windows', r.windows.replace(/^Microsoft\s+/, '')], ['Versión', <span className="num" key="ver">{[r.edicion, r.compilacion ? `compilación ${r.compilacion}` : ''].filter(Boolean).join(' · ') || r.version}</span>], ['Arquitectura', r.arquitectura], ['Instalado el', r.instalado && <span className="num">{r.instalado}</span>], ['Encendido hace', Number.isFinite(dias) ? <span className="num">{dias < 1 ? `${Math.max(1, Math.round(dias * 24))} h` : `${num(dias)} días`}</span> : '']]}>
+            {Number(r.version.split('.')[2]) < 22000 && <p className="aviso-txt">Windows 10 dejó de recibir actualizaciones de seguridad gratuitas el 14 de octubre de 2025: conviene pasar a Windows 11 si el equipo lo permite.</p>}
+            <div className="fila-acciones">
+              <button className="boton" disabled={winVersion === 'buscando'} onClick={() => { setWinVersion('buscando'); window.kit.versionWindows().then(setWinVersion).catch(() => setWinVersion({ estado: 'error' })) }}>{winVersion === 'buscando' ? 'Buscando…' : 'Comprobar si hay una versión superior'}</button>
+            </div>
+            {winVersion && winVersion !== 'buscando' && (
+              <p className={winVersion.estado === 'al-dia' ? 'nota-vacia' : 'aviso-txt'} role="status">
+                {winVersion.estado === 'al-dia' ? 'Es la última versión que Windows Update ofrece a este equipo.' : winVersion.estado === 'hay-nueva' ? `Hay una versión superior: ${winVersion.titulo ?? 'actualización de características'}. Se instala desde Configuración > Windows Update.` : 'No se pudo comprobar (¿sin Internet o con Windows Update desactivado?).'}
+              </p>
+            )}
+          </Tarjeta>
           <Tarjeta titulo="Placa base y BIOS" datos={[['Equipo', r.modelo], ['Placa', r.placa], ['BIOS', r.bios && <span className="num">{r.bios}</span>], ['Fecha de la BIOS', r.biosFecha && <span className="num">{r.biosFecha}</span>]]} />
           <Tarjeta titulo="Procesador y memoria" datos={[['Procesador', r.cpu.replace(/\s*\d+-Core Processor/, '')], ['Núcleos / hilos', <span className="num" key="n">{r.nucleos} / {r.hilos}</span>], ['Memoria', <span className="num" key="m">{r.ramGb} GB</span>], ['En uso ahora', v ? <span className="num" key="v">CPU {v.cpu} % · RAM {num(v.ramUsadaGb)} / {num(r.ramGb, 0)} GB</span> : '']]} />
           {(r.graficas ?? []).map((g, i) => <Tarjeta key={`${g.nombre}${i}`} titulo={(r.graficas ?? []).length > 1 ? `Gráfica ${i + 1}` : 'Gráfica'} datos={[['Modelo', g.nombre], ['Driver', g.driver && <span className="num">{g.driver}</span>]]} />)}

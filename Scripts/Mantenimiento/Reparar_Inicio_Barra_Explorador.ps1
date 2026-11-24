@@ -18,7 +18,10 @@ function Format-Tam([int64]$b) { if ($b -ge 1GB) { '{0:N1} GB' -f ($b / 1GB) } e
 
 # ---------------------------------------------------------------- Estado
 Write-Output "  $($E.Lupa) Estado de la interfaz de Windows"
-$explorer = @(Get-Process -Name explorer -ErrorAction SilentlyContinue)
+# Solo el explorador de esta sesión: en un equipo con varias sesiones abiertas no se toca el de las demás personas
+$miSesion = (Get-Process -Id $PID).SessionId
+function Get-ExploradorSesion { @(Get-Process -Name explorer -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $miSesion }) }
+$explorer = Get-ExploradorSesion
 Write-Output "    $(if ($explorer.Count) { $E.OK } else { $E.Aviso }) Explorador: $(if ($explorer.Count) { "en marcha ($($explorer.Count) proceso(s))" } else { 'NO está en marcha' })"
 $nombres = 'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost', 'MicrosoftWindows.Client.CBS', 'Microsoft.Windows.Search', 'MicrosoftWindows.Client.Core'
 $paquetes = @(); $mal = 0
@@ -51,11 +54,11 @@ if ($null -eq $elegidos -or -not $elegidos.Count) { Exit-Kit 'Cancelado' 'No se 
 $ids = @($elegidos | ForEach-Object { $_.Id }); $errores = 0
 
 function Stop-Explorador {
-    Get-Process -Name explorer -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-ExploradorSesion | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
 }
 function Wait-Explorador {   # Windows lo vuelve a lanzar solo (con la sesión de la persona); no se arranca a mano desde aquí para no abrirlo con permisos de administrador
-    $fin = (Get-Date).AddSeconds(12); while ((Get-Date) -lt $fin) { if (Get-Process -Name explorer -ErrorAction SilentlyContinue) { return $true }; Start-Sleep -Milliseconds 500 }; $false
+    $fin = (Get-Date).AddSeconds(12); while ((Get-Date) -lt $fin) { if (Get-ExploradorSesion) { return $true }; Start-Sleep -Milliseconds 500 }; $false
 }
 try {
     if ('iconos' -in $ids) {

@@ -27,6 +27,8 @@ function Get-EstadoComponentes {
 function Invoke-Pawnio([string]$accion) {
     $e = Get-EstadoComponentes
     if (-not $e.DriverSetup) { return [pscustomobject]@{ Ok = $false; Mensaje = 'Falta Apps\Componentes\PawnIO_setup.exe.' } }
+    # Se ejecuta como administrador: antes se comprueba su huella contra Datos\Integridad.json
+    $m = Test-ScriptAutorizado $e.SetupRuta; if ($m) { return [pscustomobject]@{ Ok = $false; Mensaje = "No se ejecuta PawnIO_setup.exe: $m." } }
     try {
         $arg = if ($accion -eq 'instalar') { '-install -silent' } else { '-uninstall -silent' }
         $setup = $e.SetupRuta; try { $setup = Copy-AlCache $e.SetupRuta } catch { Write-Log "No se pudo copiar PawnIO a la caché: $($_.Exception.Message)" 'AVISO' }   # se ejecuta desde %TEMP%, no desde el pendrive

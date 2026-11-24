@@ -10,6 +10,7 @@
 param([string]$Origen, [string]$Usuario = $env:USERNAME, [Alias('Simular')][switch]$SoloAnalizar)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if ($Usuario -notmatch '^[^\\/:*?"<>|]+$' -or $Usuario -match '^\.+$') { Exit-Kit 'Error' "El nombre de usuario «$Usuario» no es válido: no puede llevar rutas ni caracteres especiales." }
 if ($Usuario -ne $env:USERNAME) { Assert-Admin 'restaurar en el perfil de otro usuario' }
 $perfil = Join-Path (Split-Path $env:USERPROFILE -Parent) $Usuario
 if (-not (Test-Path -LiteralPath $perfil)) { Exit-Kit 'Error' "No existe el perfil $perfil" }

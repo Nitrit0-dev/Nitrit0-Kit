@@ -56,7 +56,7 @@ export function NotaSalud({ nota }: { nota: number }) {
   )
 }
 
-/** Pestañas (solapas) de un espacio de trabajo: un grupo de opciones relacionadas en vez de una lista larga en el menú. Flechas izquierda/derecha para moverse. */
+/** Solapas de un espacio de trabajo: un grupo de botones de navegación (no un tablist: no hay un panel por solapa), así que se recorren con Tab. */
 export function Solapas({ items, activo, alCambiar, etiqueta }: { items: { id: string; texto: string; cuenta?: number }[]; activo: string; alCambiar: (id: string) => void; etiqueta: string }) {
   return (
     <nav className="solapas-fila" aria-label={etiqueta}>

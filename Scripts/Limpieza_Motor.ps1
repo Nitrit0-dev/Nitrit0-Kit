@@ -19,7 +19,18 @@ function Emit($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress -Dep
 # ---------- Limpiador ----------
 function Get-ArchivosRuta([string]$r) {
     # Con -Path y -Recurse PowerShell no desciende a carpetas que casan con el comodín: se recorren aparte
-    foreach ($i in @(Get-ChildItem -Path $r -Force -ErrorAction SilentlyContinue)) { if ($i.PSIsContainer) { Get-ChildItem -LiteralPath $i.FullName -File -Recurse -Force -ErrorAction SilentlyContinue } else { $i } }
+    # Los enlaces (junctions y simbólicos) no se recorren: PowerShell 5.1 entra en ellos con -Recurse y se borraría fuera de la ruta prevista
+    foreach ($i in @(Get-ChildItem -Path $r -Force -ErrorAction SilentlyContinue)) {
+        if (Test-Enlace $i) { continue }
+        if ($i.PSIsContainer) { Get-ArchivosSinEnlaces $i.FullName } else { $i }
+    }
+}
+function Test-Enlace($i) { [bool]($i.Attributes -band [IO.FileAttributes]::ReparsePoint) }
+function Get-ArchivosSinEnlaces([string]$dir) {
+    foreach ($i in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue)) {
+        if (Test-Enlace $i) { continue }
+        if ($i.PSIsContainer) { Get-ArchivosSinEnlaces $i.FullName } else { $i }
+    }
 }
 function Get-Medida([string[]]$rutas, [int]$dias) {
     $limite = (Get-Date).AddDays(-$dias); $b = [int64]0; $n = 0
@@ -36,7 +47,8 @@ $unidad = $env:SystemDrive.TrimEnd(':')
 # Id, grupo, nombre, ayuda, marcada por defecto, riesgo (bajo/medio), días mínimos, requiere administrador, procesos a cerrar, rutas
 $cats = @(
     @{ Id = 'temp-usuario'; Grupo = 'Windows'; Nombre = 'Archivos temporales del usuario'; Ayuda = 'Restos que dejan los programas al trabajar. Se regeneran solos.'; On = $true; Riesgo = 'bajo'; Dias = 0; Admin = $false; Cierra = @(); Rutas = @("$env:LOCALAPPDATA\Temp\*", "$env:LOCALAPPDATA\CrashDumps\*") }
-    @{ Id = 'temp-windows'; Grupo = 'Windows'; Nombre = 'Archivos temporales de Windows'; Ayuda = 'Carpeta Temp del sistema.'; On = $true; Riesgo = 'bajo'; Dias = 0; Admin = $true; Cierra = @(); Rutas = @("$env:SystemRoot\Temp\*", "$env:SystemDrive\TEMP\*") }
+    @{ Id = 'temp-windows'; Grupo = 'Windows'; Nombre = 'Archivos temporales de Windows'; Ayuda = 'Carpeta Temp del sistema.'; On = $true; Riesgo = 'bajo'; Dias = 0; Admin = $true; Cierra = @(); Rutas = @("$env:SystemRoot\Temp\*") }
+    @{ Id = 'temp-raiz'; Grupo = 'Windows'; Nombre = 'Carpeta C:\TEMP (si existe)'; Ayuda = 'No es una carpeta de Windows: la crean a mano usuarios o programas de gestión para trabajo temporal. Míralo con el cliente antes de borrarla.'; On = $false; Riesgo = 'medio'; Dias = 0; Admin = $true; Cierra = @(); Rutas = @("$env:SystemDrive\TEMP\*") }
     @{ Id = 'miniaturas'; Grupo = 'Windows'; Nombre = 'Caché de miniaturas'; Ayuda = 'Vistas previas del Explorador. Se vuelven a crear al abrir las carpetas.'; On = $true; Riesgo = 'bajo'; Dias = 0; Admin = $false; Cierra = @(); Rutas = @("$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db", "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db") }
     @{ Id = 'informes-error'; Grupo = 'Windows'; Nombre = 'Informes de errores de Windows'; Ayuda = 'Informes de cuelgues ya enviados o en cola.'; On = $true; Riesgo = 'bajo'; Dias = 0; Admin = $true; Cierra = @(); Rutas = @("$env:ProgramData\Microsoft\Windows\WER\ReportArchive\*", "$env:ProgramData\Microsoft\Windows\WER\ReportQueue\*") }
     @{ Id = 'volcados'; Grupo = 'Windows'; Nombre = 'Volcados de memoria tras un error grave'; Ayuda = 'MEMORY.DMP y minivolcados. Bórralos si no vas a analizar una pantalla azul.'; On = $false; Riesgo = 'medio'; Dias = 0; Admin = $true; Cierra = @(); Rutas = @("$env:SystemRoot\Minidump\*", "$env:SystemRoot\MEMORY.DMP", "$env:SystemRoot\LiveKernelReports\*") }
@@ -60,7 +72,7 @@ if ($Accion -eq 'Analizar') {
     foreach ($c in $cats) {
         if ($c.Especial -eq 'papelera') { $f = @(Get-Papelera); $m = [pscustomobject]@{ Bytes = [int64]($f | Measure-Object Length -Sum).Sum; Archivos = $f.Count } } else { $m = Get-Medida $c.Rutas $c.Dias }
         $total += $m.Bytes
-        Emit @{ evento = 'categoria'; id = $c.Id; grupo = $c.Grupo; nombre = $c.Nombre; ayuda = $c.Ayuda; marcada = $c.On; riesgo = $c.Riesgo; bytes = $m.Bytes; archivos = $m.Archivos; admin = $c.Admin }
+        Emit @{ evento = 'categoria'; id = $c.Id; grupo = $c.Grupo; nombre = $c.Nombre; ayuda = $c.Ayuda; marcada = $c.On; riesgo = $c.Riesgo; bytes = $m.Bytes; archivos = $m.Archivos; admin = $c.Admin; abiertos = @($c.Cierra | Where-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue }) }
     }
     Emit @{ evento = 'fin'; bytes = $total; esAdmin = (Test-EsAdmin) }
     Write-Log "Limpieza_Motor: análisis, $([int64]($total / 1MB)) MB estimados"
@@ -86,7 +98,7 @@ if ($Accion -eq 'Limpiar') {
         $servicios = @(); $enUso = 0; $liberado = [int64]0
         try {
             if ($c.Id -eq 'windows-update') { foreach ($s in 'wuauserv', 'bits') { $sv = Get-Service -Name $s -ErrorAction SilentlyContinue; if ($sv -and $sv.Status -eq 'Running') { $servicios += $s; Stop-Service -Name $s -Force -ErrorAction SilentlyContinue } } }
-            if ($c.Especial -eq 'papelera') { $liberado = [int64](Get-Papelera | Measure-Object Length -Sum).Sum; Clear-RecycleBin -Force -ErrorAction Stop }
+            if ($c.Especial -eq 'papelera') { $liberado = [int64](Get-Papelera | Measure-Object Length -Sum).Sum; Clear-RecycleBin -DriveLetter $unidad -Force -ErrorAction Stop }   # solo la unidad medida: sin -DriveLetter vaciaría también discos externos
             else {
                 $limite = (Get-Date).AddDays(-$c.Dias)
                 foreach ($r in $c.Rutas) {
@@ -95,7 +107,7 @@ if ($Accion -eq 'Limpiar') {
                         $t = $f.Length; try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $liberado += $t } catch { $enUso++ }
                     }
                     # Carpetas que han quedado vacías (sin borrar la propia carpeta base)
-                    if ($c.Dias -eq 0 -and $r.EndsWith('\*')) { Get-ChildItem -Path $r -Directory -Force -ErrorAction SilentlyContinue | Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue) } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
+                    if ($c.Dias -eq 0 -and $r.EndsWith('\*')) { Get-ChildItem -Path $r -Directory -Force -ErrorAction SilentlyContinue | Where-Object { -not (Test-Enlace $_) -and -not (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1) } | Remove-Item -Force -ErrorAction SilentlyContinue }
                 }
             }
             Emit @{ evento = 'categoria'; id = $c.Id; bytes = $liberado; enUso = $enUso }
@@ -163,9 +175,12 @@ if ($Accion -eq 'RegistroAnalizar' -or $Accion -eq 'RegistroLimpiar') {
     $m = Test-ScriptAutorizado $script
     if ($m) { Emit @{ evento = 'error'; mensaje = "No se ejecuta Limpiar_Registro_Huerfano.ps1: $m" }; exit 1 }
     if ($Accion -eq 'RegistroAnalizar') {
+        $global:LASTEXITCODE = 0
         foreach ($l in @(& $script -SoloAnalizar *>&1 | ForEach-Object { [string]$_ })) {
             if ($l -match '^\s+\[(Alta|Media|Baja)\]\s+(.+?):\s+(.*)$') { Emit @{ evento = 'resto'; conf = $Matches[1]; grupo = $Matches[2]; detalle = $Matches[3] } }
         }
+        # Si el análisis falló, no se puede decir «el registro está limpio»
+        if ($LASTEXITCODE -ne 0) { Emit @{ evento = 'error'; mensaje = "El análisis del registro falló (código $LASTEXITCODE): no se sabe si hay restos." }; exit 1 }
         Emit @{ evento = 'fin'; esAdmin = (Test-EsAdmin) }
         exit 0
     }
@@ -187,7 +202,7 @@ if ($Accion -eq 'DesinstalarFondo') {
     Emit @{ evento = 'inicio' }
     $global:LASTEXITCODE = 0
     # El script cuenta lo que hace (programa n de m, restos, cuarentena): se reenvía línea a línea para que la ventana muestre el avance
-    & $script -Nombre $Nombres *>&1 | ForEach-Object { $s = ([string]$_).Trim(); if ($s) { Emit @{ evento = 'salida'; texto = $s } } }
+    & $script -Nombre $Nombres -SinConfirmar *>&1 | ForEach-Object { $s = ([string]$_).Trim(); if ($s) { Emit @{ evento = 'salida'; texto = $s } } }
     $c = $LASTEXITCODE
     Emit @{ evento = 'fin'; codigo = $c }
     exit $c
@@ -245,7 +260,7 @@ if ($Accion -eq 'InicioCambiar') {
         [void](Start-OperacionSegura 'Programas de inicio (Limpieza)' -SinPuntoRestauracion)
         $partes = $Id -split '\|', 2
         if ($Tipo -eq 'registro') {
-            if ($partes.Count -ne 2 -or $partes[0] -notmatch '^HK(LM|CU):\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\') { throw 'Elemento de inicio no válido.' }
+            if ($partes.Count -ne 2 -or $partes[0] -notmatch '^HK(LM|CU):\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\(Run|Run32|StartupFolder)$' -or $partes[1] -match '[\\/]') { throw 'Elemento de inicio no válido.' }
             if ($partes[0] -like 'HKLM:*' -and -not (Test-EsAdmin)) { throw 'Hace falta administrador para cambiar los programas de todos los usuarios.' }
             Set-ValorSeguro $partes[0] $partes[1] ([byte[]]($(if ($Activar) { 2 } else { 3 }), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) 'Binary'
         } elseif ($Tipo -eq 'tarea') {

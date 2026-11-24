@@ -211,7 +211,7 @@ $consejos = @{
 
 # Tiempos medidos en equipos anteriores (solo id del paso y segundos): sustituyen a la estimación fija cuando existen
 $archivoTiempos = $null; $tiempos = @{}
-try { $archivoTiempos = Join-Path (Get-KitDatos) 'Tiempos_Pasos.json' } catch { }
+try { $archivoTiempos = Join-Path (Get-BaseTrabajo) 'Tiempos_Pasos.json' } catch { }   # en el pack público (Get-BaseTrabajo = caché del PC) no se escribe en el pendrive
 if ($archivoTiempos -and (Test-Path -LiteralPath $archivoTiempos)) {
     try { foreach ($q in (Get-Content -LiteralPath $archivoTiempos -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties) { $tiempos[$q.Name] = @{ n = [int]$q.Value.n; seg = [double]$q.Value.seg } } } catch { }
 }

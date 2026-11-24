@@ -86,8 +86,10 @@ if ($SoloAnalizar) { Exit-Kit 'Ok' }
 
 # ---------------------------------------------------------------- 3) Cerrar (con confirmación)
 $protegidos = 'explorer', 'System', 'Idle', 'csrss', 'wininit', 'winlogon', 'services', 'lsass', 'svchost', 'dwm', 'smss', 'MsMpEng', 'fontdrvhost', 'Nitrit0', 'Nitrit0 Kit', 'powershell', 'conhost'
-$cerrables = @($lista | Where-Object { $_.Programa -notin $protegidos -and $_.Pid -ne $PID -and $_.Pid -gt 4 })
-$aparte = @($lista | Where-Object { $_.Programa -in $protegidos })
+# El Administrador de reinicio da nombres amigables («Desktop Window Manager»): se compara también el nombre real del proceso por su PID
+function Test-Protegido($x) { $n = try { (Get-Process -Id $x.Pid -ErrorAction Stop).ProcessName } catch { '' }; ($x.Programa -in $protegidos) -or ($n -in $protegidos) -or ($x.Pid -le 4) -or ($x.Pid -eq $PID) }
+$cerrables = @($lista | Where-Object { -not (Test-Protegido $_) })
+$aparte = @($lista | Where-Object { $_.Pid -ne $PID -and (Test-Protegido $_) })
 if ($aparte.Count) { Write-Output "  $($E.Info) De la lista, $(($aparte | ForEach-Object { $_.Programa }) -join ', ') son de Windows o de esta herramienta y no se cierran desde aquí (el Explorador: cierra sus ventanas)." }
 if (-not $cerrables.Count) { Exit-Kit 'Ok' }
 if (Confirm-Accion ("Programas que tienen esto en uso:`n`n" + (($cerrables | ForEach-Object { "  · $($_.Programa)" }) -join "`n") + "`n`n¿Los cierro? Si tienen algo sin guardar, se perderá.") 'Nitrit0 Kit' -Siempre) {

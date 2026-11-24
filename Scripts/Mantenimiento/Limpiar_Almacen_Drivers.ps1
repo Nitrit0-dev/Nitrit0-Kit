@@ -81,7 +81,7 @@ if (-not $elegidos.Count) { Exit-Kit 'Cancelado' 'No se quita nada.' }
 
 # ---------------------------------------------------------------- Copia y borrado
 [void](New-PuntoRestauracionSeguro 'Nitrit0 - antes de limpiar el almacén de drivers')
-$respaldo = Join-Path (Get-KitDatos) ('Drivers\Almacen_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
+$respaldo = Join-Path (Get-BaseTrabajo) ('Drivers\Almacen_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
 New-Item -ItemType Directory -Force $respaldo | Out-Null
 $ok = 0; $fallos = 0; $liberado = [int64]0
 foreach ($x in $elegidos) {

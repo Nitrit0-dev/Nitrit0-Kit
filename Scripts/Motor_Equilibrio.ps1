@@ -119,7 +119,17 @@ function Get-InfoGpuUna([string]$nombre, [double]$vramMB) {
 function Get-InfoGpu {
     $vc = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -and $_.Name -notmatch 'Basic Display|Remote|Virtual|Mirror|Parsec|Citrix|Meta|DisplayLink|Hyper-V' })
     $lista = @(foreach ($v in $vc) {
-        $ram = [double]$v.AdapterRAM; if ($ram -lt 0 -or $ram -ge 4294967295) { $ram = 4096MB }
+        $ram = [double]$v.AdapterRAM
+        if ($ram -lt 0 -or $ram -ge 4294967295) {
+            # AdapterRAM es de 32 bits y se topa en 4 GB aunque la tarjeta tenga 8, 12 o 24: la memoria real la guarda el driver en el registro (qwMemorySize)
+            $ram = 4096MB
+            try {
+                foreach ($k in @(Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}' -ErrorAction Stop | Where-Object { $_.PSChildName -match '^\d{4}$' })) {
+                    $p = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue
+                    if ($p.DriverDesc -eq $v.Name -and $p.'HardwareInformation.qwMemorySize') { $reg = [double]([BitConverter]::ToUInt64([byte[]](@($p.'HardwareInformation.qwMemorySize') + (0, 0, 0, 0, 0, 0, 0, 0))[0..7], 0)); if ($p.'HardwareInformation.qwMemorySize' -is [long] -or $p.'HardwareInformation.qwMemorySize' -is [uint64]) { $reg = [double]$p.'HardwareInformation.qwMemorySize' }; if ($reg -gt $ram) { $ram = $reg }; break }
+                }
+            } catch { }
+        }
         $g = Get-InfoGpuUna ($v.Name.Trim()) ($ram / 1MB)
         $g | Add-Member -NotePropertyName Driver -NotePropertyValue ("{0} ({1:dd/MM/yyyy})" -f $v.DriverVersion, $v.DriverDate) -PassThru
     })
@@ -290,7 +300,7 @@ function Get-AnalisisConfig {
     # --- Energía
     $plan = (powercfg /getactivescheme 2>$null) -join ' '
     $enBateria = $false; try { $bat = Get-CimInstance Win32_Battery; if ($bat -and $bat.BatteryStatus -eq 1) { $enBateria = $true } } catch { }
-    if ($plan -match '381b4222') { Add-H 'Sistema' 'Aviso' 'Plan de energía en «Economizador»' 'Limita la frecuencia de la CPU y baja el rendimiento.' $plan 'Cambia a «Equilibrado» o «Alto rendimiento» en Configuración > Sistema > Energía.' }
+    if ($plan -match 'a1841308') { Add-H 'Sistema' 'Aviso' 'Plan de energía en «Economizador»' 'Limita la frecuencia de la CPU y baja el rendimiento.' $plan 'Cambia a «Equilibrado» o «Alto rendimiento» en Configuración > Sistema > Energía.' }
     elseif ($enBateria) { Add-H 'Sistema' 'Info' 'Portátil funcionando con batería' 'Con batería Windows y el fabricante reducen la potencia de CPU y GPU.' $plan 'Conecta el cargador para medir el rendimiento real.' }
     else { Add-H 'Sistema' 'OK' 'Plan de energía sin límites' 'El plan activo no recorta el rendimiento.' $plan }
 
@@ -329,7 +339,13 @@ function Start-Monitor {
             $m.Nucleo = [double](($p | Where-Object Name -ne '_Total' | Measure-Object PercentProcessorTime -Maximum).Maximum)
         } catch { }
         try { $pi = Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'"; if ($pi.PercentProcessorPerformance) { $m.Perf = [double]$pi.PercentProcessorPerformance } } catch { }
-        try { $os = Get-CimInstance Win32_OperatingSystem; $m.Ram = [math]::Round((1 - $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) * 100, 1) } catch { }
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem
+            # FreePhysicalMemory no cuenta la caché de Windows (standby), que se libera al instante: un equipo sano saldría casi lleno. «Disponible» sí la cuenta, como el Administrador de tareas.
+            $disp = $null; try { $disp = [double](Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory -ErrorAction Stop).AvailableMBytes * 1024 } catch { }
+            if (-not $disp) { $disp = [double]$os.FreePhysicalMemory }
+            $m.Ram = [math]::Round((1 - $disp / $os.TotalVisibleMemorySize) * 100, 1)
+        } catch { }
         try { $mem = Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory; $m.Paginas = [double]$mem.PagesInputPersec } catch { }
         try { $d = Get-CimInstance Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'"; $m.Disco = [double]$d.PercentDiskTime; $m.Cola = [double]$d.CurrentDiskQueueLength } catch { }
         try {

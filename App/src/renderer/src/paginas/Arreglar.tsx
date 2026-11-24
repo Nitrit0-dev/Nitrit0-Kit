@@ -306,7 +306,7 @@ function Trabajando({ auto, simple, alDetener, alSaltar, enfoque }: Props & { au
       <p className="calma">Llevo {mmss(llevo)}{auto.fase === 'arreglando' && activo ? ` · quedan unos ${quedan} min (aproximado)` : auto.fase === 'analisis' && !auto.combo ? ' · suele tardar menos de un minuto' : ''}. Puedes dejarlo trabajando; no apagues el ordenador.</p>
       {parado && (
         <div className="aviso-banda" role="alert">
-          <p style={{ margin: '0 0 8px' }}>Esto está tardando más de lo normal ({mmss(activo.silencio)} sin avances).</p>
+          <p className="sep-abajo">Esto está tardando más de lo normal ({mmss(activo.silencio)} sin avances).</p>
           <button className="boton" onClick={alSaltar}>Pasar al siguiente</button>
         </div>
       )}
@@ -422,7 +422,7 @@ function Resultado({ simple, soluciones, elementos, ocupado, informe, reinicioPe
           {avFallo && <li>No he podido analizar el equipo con el antivirus de Windows.</li>}
           {noHechos.map((x) => <li key={x.id}>No he podido terminar: {x.titulo.charAt(0).toLowerCase()}{x.titulo.slice(1)}.</li>)}
         </ul>
-        {restFallo && hechos.length > 0 && <p className="calma" style={{ marginTop: 12 }}>No pude guardar la copia de seguridad de Windows. Los ajustes que se hayan cambiado se pueden deshacer igualmente; reparar archivos o la red, no.</p>}
+        {restFallo && hechos.length > 0 && <p className="calma sep-arriba">No pude guardar la copia de seguridad de Windows. Los ajustes que se hayan cambiado se pueden deshacer igualmente; reparar archivos o la red, no.</p>}
       </section>
 
       {av && amenazas > 0 && (

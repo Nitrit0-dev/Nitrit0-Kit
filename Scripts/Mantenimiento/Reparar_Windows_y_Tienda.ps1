@@ -13,6 +13,7 @@ if (-not $Global:E) {
     }
 }
 $E = $Global:E
+if (-not $SoloAnalizar) { Assert-Admin 'reparar Windows y la Tienda' }
 
 # Ejecuta el proceso con tiempo máximo y aviso de progreso. Devuelve SOLO el código de salida
 # (el progreso va por Write-Host: si fuera por Write-Output se mezclaría con el valor devuelto).

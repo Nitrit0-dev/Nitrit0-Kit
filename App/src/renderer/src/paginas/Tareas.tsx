@@ -49,7 +49,7 @@ export default function Tareas({ instalada, hayInstalacion, puedeInstalar, memor
         <div className="arranque-fila">
           <span className="sub-linea"><b>En este equipo</b> · {instalada ? 'Instalada en Archivos de programa (icono junto al reloj)' : hayInstalacion ? 'Copia instalada en Archivos de programa' : 'Instalar copia ligera (menú Inicio e icono junto al reloj)'}</span>
           <div className="arranque-controles">
-            <button className="interruptor" role="switch" aria-label="Arrancar con Windows" aria-checked={arranque} disabled={!instalada && !arranque} onClick={() => alArranque(!arranque)}><span className="texto">Arrancar con Windows</span><span className="pista" /></button>
+            <button className="interruptor" role="switch" aria-label="Arrancar con Windows" aria-checked={arranque} disabled={!instalada && !arranque} title={!instalada && !arranque ? 'Primero pulsa «Instalar en este equipo»' : undefined} onClick={() => alArranque(!arranque)}><span className="texto">Arrancar con Windows</span><span className="pista" /></button>
             {(puedeInstalar || hayInstalacion) && <button className="boton" disabled={ocupado} onClick={hayInstalacion ? alQuitarInstalacion : alInstalar}>{hayInstalacion ? 'Quitar instalación' : 'Instalar en este equipo'}</button>}
           </div>
         </div>

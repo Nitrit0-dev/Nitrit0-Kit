@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { LayoutDashboard, ScanSearch, PackageCheck, Hammer, Usb, Moon, Sun, Monitor, Loader, SquareTerminal, Stethoscope, Scale, UserRound, CircleHelp, House, Sparkles, Copy, Trash2, Eraser, ShieldCheck, Type, MonitorCheck, ClipboardCheck } from 'lucide-react'
+﻿import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ScanSearch, PackageCheck, Hammer, Usb, Moon, Sun, Monitor, Loader, SquareTerminal, Scale, UserRound, CircleHelp, House, Eraser, ShieldCheck, Type, MonitorCheck, ClipboardCheck, Wrench, Heart } from 'lucide-react'
 import Inicio from './paginas/Inicio'
 import Tareas from './paginas/Tareas'
 import Ajustes from './paginas/Ajustes'
 import PanelEquipo from './componentes/PanelEquipo'
+import { anotarHito } from './componentes/criatura'
+import { resumenGuardado } from './equipo'
 import Desplegable from './componentes/Desplegable'
 import Pagina from './paginas/Pagina'
 import EjecucionVista from './paginas/Ejecucion'
@@ -78,7 +80,9 @@ export default function App() {
   const oscuro = modoTema === 'sistema' ? sistemaOscuro : modoTema === 'oscuro'
   // Modo sencillo: una sola pantalla de ayuda, sin menú. El técnico pasa al modo técnico con un botón y se recuerda.
   const simple = (estado?.modo ?? 'sencillo') === 'sencillo'
-  const vista = simple ? 'arreglar' : vistaPedida
+  // Modo sencillo: cuatro entradas (Inicio, Revisar mi equipo, Arreglarlo y Mi informe, que abre el informe de entrega)
+  const VISTAS_SENCILLAS = ['inicio', 'revision', 'arreglar']
+  const vista = simple ? (VISTAS_SENCILLAS.includes(vistaPedida) ? vistaPedida : 'arreglar') : vistaPedida
   const [reinicioPedido, setReinicioPedido] = useState(false)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const [perfilCerrado, setPerfilCerrado] = useState(false)
@@ -205,8 +209,6 @@ export default function App() {
     const r = await window.kit.lanzar(e.id)
     setPie(r.mensaje)
   }
-  const accesos = ([['Clonar_Disco.ps1', <Copy size={18} strokeWidth={1.75} />], ['Desinstalar_Total.ps1', <Trash2 size={18} strokeWidth={1.75} />], ['Limpieza_Total.ps1', <Eraser size={18} strokeWidth={1.75} />]] as const)
-    .flatMap(([id, icono]) => { const el = visibles.find((e) => e.id === id); return el ? [{ el, icono }] : [] })
   // Al ocultar la ventana (cierre a la bandeja) la búsqueda se vacía: al volver a abrirla sale en blanco
   useEffect(() => {
     const alCambiar = () => { if (document.visibilityState === 'hidden') setConsulta('') }
@@ -255,6 +257,7 @@ export default function App() {
   const deshacer = () => pedir({ titulo: 'Deshacer los últimos cambios', texto: 'Devuelve los ajustes cambiados a como estaban antes. No recupera los archivos temporales que se borraron.', ok: 'Sí, deshacer', no: 'Ahora no', alAceptar: () => void empezarCombo(['deshacer']) })
   useEffect(() => {
     const r = auto?.fase === 'fin' ? auto.resultado : null
+    if (r && r.modo !== 'combo' && !r.soloMirar && !auto?.cancelado && r.equipo) anotarHito(r.equipo, 'arreglado')
     if (r && r.modo !== 'combo' && opciones.current) { const u = { titular: r.titular, hora: Date.now(), enfoque: opciones.current.enfoque, actualizar: opciones.current.actualizar, antivirus: opciones.current.antivirus, cliente: opciones.current.cliente }; setUltima(u); void window.kit.guardarUltima(u) }
   }, [auto?.fase, auto?.resultado])
   // Atajos: F1 ayuda en cualquier modo; Ctrl+1..4 saltan entre espacios en el modo técnico
@@ -293,7 +296,7 @@ export default function App() {
   const informeEntrega = async (d: { cliente: string; notas: string }) => {
     setEntregaAbierta(false)
     const r = await window.kit.informeEntrega(d)
-    setPie(r.mensaje)
+    setPie(r.mensaje); const eq = resumenGuardado()?.equipo; if (r.ok && eq) anotarHito(eq, 'entregado')
   }
 
   const favoritas = estado?.favoritos ?? []
@@ -307,7 +310,7 @@ export default function App() {
     setEstado((s) => (s ? { ...s, modo: m } : s))
     void window.kit.modo(m)
   }
-  const reiniciar = () => setDialogo({ titulo: 'Reiniciar el ordenador', texto: 'El ordenador se reiniciará en 30 segundos. Guarda antes lo que tengas abierto.', textoOk: 'Sí, reiniciar', textoNo: 'Ahora no', alAceptar: () => { setDialogo(null); void window.kit.reiniciar().then((r: { mensaje: string }) => { setPie(r.mensaje); setReinicioPedido(true) }) } })
+  const reiniciar = () => setDialogo({ titulo: 'Reiniciar el ordenador', texto: 'El ordenador se reiniciará en 30 segundos. Guarda antes lo que tengas abierto.', textoOk: 'Sí, reiniciar', textoNo: 'Ahora no', alAceptar: () => { setDialogo(null); void window.kit.reiniciar().then((r: { ok: boolean; mensaje: string }) => { setPie(r.mensaje); if (r.ok) setReinicioPedido(true) }) } })
   const cancelarReinicio = () => { void window.kit.cancelarReinicio().then((r: { mensaje: string }) => { setPie(r.mensaje); setReinicioPedido(false) }) }
   const cambiarTema = (t: 'oscuro' | 'claro' | 'sistema') => {
     setEstado((s) => (s ? { ...s, tema: t } : s))
@@ -324,10 +327,18 @@ export default function App() {
   const paginaActual = paginas.find((p) => slug(p) === vista)
   useEffect(() => { if (vista !== 'arreglar') setOpcionPedida(null) }, [vista])
   const dxCorriendo = enMarcha && ejec?.id === 'diagnostico'
-  const enDiag = vista === 'diagnostico' || vista === 'equilibrio'
-  const enEstado = vista === 'inicio' || vista === 'discos'
-  const enPropias = vista === slug(PAGINA_PROPIA)
-  const enHerr = (!!paginaActual && !enPropias) || vista === 'combos' || vista === 'ajustes'
+  // Siete secciones; cada vista y cada página del catálogo cuelga de una sola (antes había dos menús paralelos con lo mismo repetido)
+  const IDS_REVISAR = ['inicio', 'revision', 'diagnostico', 'discos', 'equilibrio']
+  // Menú por recorrido: Revisar, Probar, Arreglar (reparar y limpiar), Entregar (abre el informe de entrega)
+  const PAGS_LIMPIAR = ['Preparar equipo', 'Reparar y mantener']
+  const IDS_ARREGLAR = ['arreglar', 'combos', ...PAGS_LIMPIAR.map(slug), 'ajustes']
+  const PAGS_HERR = ['Comprobar', PAGINA_PROPIA]
+  const IDS_HERR = PAGS_HERR.map(slug)
+  const enRevisar = IDS_REVISAR.includes(vista)
+  const enArreglar = IDS_ARREGLAR.includes(vista)
+  const enHerr = IDS_HERR.includes(vista)
+  const tabPag = (p: string) => ({ id: slug(p), texto: p, cuenta: visibles.filter((e) => e.pagina === p).length })
+  const irA = (ids: string[], porDefecto: string) => () => setVista(ids.includes(vista) ? vista : ids.includes(ultimaPag.current) ? ultimaPag.current : porDefecto)
   const panelAuto = catalogo && (
     <Arreglar auto={auto} simple={simple} reinicioPedido={reinicioPedido} alReiniciar={reiniciar} alCancelarReinicio={cancelarReinicio} ocupado={enMarcha && ejec?.id !== 'auto'} cliente={ficha.Cliente} soluciones={catalogo.soluciones} elementos={visibles} informe={ejec?.id === 'auto' ? ejec.informe : null}
       alEmpezar={(o) => void empezarAuto(o)} alSaltar={() => void window.kit.autoSaltar()} alConfirmarPlan={(ids) => void confirmarPlan(ids)} alPedir={pedir} ultima={ultima} puedeRepetir={!!accion.current} alRepetir={repetir} alRepetirRevision={repetirRevision} enfoque={opciones.current?.enfoque} alDeshacer={deshacer} lineas={ejec?.lineas ?? []} alDetener={detenerAuto} alCancelarSinPreguntar={() => void window.kit.cancelar()} alNueva={() => { setAuto(null); setReinicioPedido(false) }} alLanzar={lanzar} opcionInicial={opcionPedida} />
@@ -339,14 +350,12 @@ export default function App() {
       {!simple && <nav className="lateral" aria-label="Secciones">
         {nav('portada', 'Inicio', <House size={18} strokeWidth={1.75} />)}
         <hr />
-        <button className="nav" aria-current={enEstado ? 'page' : undefined} onClick={() => setVista(enEstado ? vista : 'inicio')}><LayoutDashboard size={18} strokeWidth={1.75} />Estado del equipo</button>
-        <button className="nav" aria-current={enDiag ? 'page' : undefined} onClick={() => setVista(enDiag ? vista : 'diagnostico')}><Stethoscope size={18} strokeWidth={1.75} />Diagnóstico</button>
-        {nav('revision', 'Revisión total', <ClipboardCheck size={18} strokeWidth={1.75} />)}
-        {nav('pruebas', 'Pruebas del equipo', <MonitorCheck size={18} strokeWidth={1.75} />)}
-        {/* Accesos fijos: también existen como programas sueltos (Nitrit0_Utilidades), pero aquí van de primeras, sin buscarlos */}
-        {accesos.map(({ el, icono }) => <button key={el.id} className="nav" disabled={enMarcha && !puedeEncolar} onClick={() => lanzar(el)}>{icono}{el.titulo.replace(/ \(.*\)$/, '')}</button>)}
-        {paginas.includes(PAGINA_PROPIA) && <button className="nav" aria-current={enPropias ? 'page' : undefined} onClick={() => setVista(slug(PAGINA_PROPIA))}><Sparkles size={18} strokeWidth={1.75} />Del kit<span className="cuenta num">{visibles.filter((e) => e.pagina === PAGINA_PROPIA).length}</span></button>}
-        <button className="nav" aria-current={enHerr ? 'page' : undefined} onClick={() => setVista(enHerr ? vista : ultimaPag.current)}><Hammer size={18} strokeWidth={1.75} />Herramientas<span className="cuenta num">{visibles.length}</span></button>
+        <button className="nav" aria-current={enRevisar ? 'page' : undefined} onClick={irA(IDS_REVISAR, 'inicio')}><ClipboardCheck size={18} strokeWidth={1.75} />Revisar</button>
+        {nav('pruebas', 'Probar', <MonitorCheck size={18} strokeWidth={1.75} />)}
+        <button className="nav" aria-current={enArreglar ? 'page' : undefined} onClick={irA(IDS_ARREGLAR, 'arreglar')}><Wrench size={18} strokeWidth={1.75} />Arreglar</button>
+        <button className="nav" onClick={() => setEntregaAbierta(true)}><Eraser size={18} strokeWidth={1.75} />Entregar</button>
+        <button className="nav" aria-current={enHerr ? 'page' : undefined} onClick={irA(IDS_HERR, 'comprobar')}><Hammer size={18} strokeWidth={1.75} />Herramientas<span className="cuenta num">{visibles.filter((e) => PAGS_HERR.includes(e.pagina)).length}</span></button>
+        {paginas.includes('Kit') && nav(slug('Kit'), 'Kit', <Usb size={18} strokeWidth={1.75} />)}
         {ejec && (<><hr />{nav('ejecucion', enMarcha ? (cola.length ? `En marcha · ${cola.length} en cola` : 'En marcha') : 'Última ejecución', enMarcha ? <Loader size={18} strokeWidth={1.75} /> : <SquareTerminal size={18} strokeWidth={1.75} />)}</>)}
         <div className="pie-lateral">
           <PanelEquipo admin={estado?.admin} alVerEstado={() => setVista('inicio')} />
@@ -354,6 +363,7 @@ export default function App() {
           {estado && !estado.admin && <button className="nav" disabled={enMarcha} onClick={() => { setPie('Pidiendo permiso de administrador…'); window.kit.elevar().then((r) => setPie(r.mensaje)).catch(() => setPie('No se pudo pedir el permiso de administrador.')) }}><ShieldCheck size={18} strokeWidth={1.75} />Elevar permisos</button>}
           <button className="nav" onClick={() => setAyudaAbierta(true)}><CircleHelp size={18} strokeWidth={1.75} />Ayuda<span className="cuenta num">F1</span></button>
           <button className="nav" onClick={cambiarModo}><UserRound size={18} strokeWidth={1.75} />Modo sencillo</button>
+          {estado?.ocultarPeligro && <button className="nav" onClick={() => void window.kit.donar()}><Heart size={18} strokeWidth={1.75} />Apoyar el proyecto</button>}
           <Desplegable lateral etiqueta="Tema de la aplicación" valor={modoTema} alElegir={(k) => cambiarTema(k as 'oscuro' | 'claro' | 'sistema')}
             icono={modoTema === 'sistema' ? <Monitor size={18} strokeWidth={1.75} /> : oscuro ? <Moon size={18} strokeWidth={1.75} /> : <Sun size={18} strokeWidth={1.75} />}
             textoBoton={`Tema: ${NOMBRE_TEMA[modoTema]}`} opciones={[{ k: 'oscuro', t: 'Oscuro' }, { k: 'claro', t: 'Claro' }, { k: 'sistema', t: 'Igual que Windows' }]} />
@@ -367,6 +377,16 @@ export default function App() {
         <ErrorBoundary>
         {errorCatalogo && <div className="pagina"><h1 tabIndex={-1}>No se pudo cargar el catálogo</h1><p className="vacio">{errorCatalogo}</p><div><button className="boton" onClick={cargar}>Volver a intentarlo</button></div></div>}
         {!errorCatalogo && !catalogo && <div className="pagina cargando" role="status"><div className="cargando-logo" aria-hidden="true"><img src={logo} alt="" /></div><h1 tabIndex={-1}>Cargando el kit…</h1><p className="vacio">Un momento, preparo las herramientas.</p></div>}
+        {/* Las solapas van siempre arriba, antes del contenido (antes las de «Estado del equipo» quedaban debajo de la pantalla) */}
+        {catalogo && simple && <Solapas etiqueta="Qué quieres hacer" activo={vista} alCambiar={(id) => { if (id === 'informe') { setEntregaAbierta(true); return } setVista(id) }}
+          items={[{ id: 'inicio', texto: 'Inicio' }, { id: 'revision', texto: 'Revisar mi equipo' }, { id: 'arreglar', texto: 'Arreglarlo' }, { id: 'informe', texto: 'Mi informe' }]} />}
+        {catalogo && !simple && enRevisar && <Solapas etiqueta="Revisar" activo={vista}
+          alCambiar={(id) => { if (id === 'antivirus') { window.kit.abrirAntivirus().then((r) => setPie(r.mensaje)).catch(() => setPie('No se pudo abrir el antivirus.')); return } setVista(id) }}
+          items={[{ id: 'inicio', texto: 'Resumen' }, { id: 'revision', texto: 'Revisión total' }, { id: 'diagnostico', texto: 'Diagnóstico' }, { id: 'discos', texto: 'Discos' }, { id: 'equilibrio', texto: 'Qué lo frena' }, ...(estado?.antivirus ? [{ id: 'antivirus', texto: 'Antivirus' }] : [])]} />}
+        {catalogo && enArreglar && <Solapas etiqueta="Arreglar" activo={vista} alCambiar={(id) => { if (id !== 'arreglar' && id !== 'combos') ultimaPag.current = id; setVista(id) }}
+          items={[{ id: 'arreglar', texto: 'Por síntoma' }, { id: 'combos', texto: 'Combos' }, ...PAGS_LIMPIAR.filter((p) => paginas.includes(p)).map(tabPag), { id: 'ajustes', texto: 'Ajustes de Windows' }]} />}
+        {catalogo && enHerr && <Solapas etiqueta="Herramientas" activo={vista} alCambiar={(id) => { ultimaPag.current = id; setVista(id) }}
+          items={PAGS_HERR.filter((p) => paginas.includes(p)).map(tabPag)} />}
         {catalogo && vista === 'portada' && (
           <Tareas instalada={estado?.instalada === true} hayInstalacion={estado?.hayInstalacion === true} puedeInstalar={estado?.puedeInstalar === true} memoriaAuto={estado?.memoriaAuto === true} alInstalar={instalar} alQuitarInstalacion={quitarInstalacion} alMemoria={() => void liberarMemoria()} alMemoriaAuto={(on) => void cambiarMemoriaAuto(on)} perfil={estado?.perfil ?? null} arranque={estado?.arranque === true} alPerfil={(id) => void elegirPerfil(id)} alArranque={(on) => void cambiarArranque(on)} elementos={visibles} favoritas={favoritas} ocupado={enMarcha} totalHerramientas={visibles.length}
             alLanzar={lanzar} alDiagnostico={() => setVista('diagnostico')} alCombos={() => setVista('combos')} alAjustes={() => { ultimaPag.current = 'ajustes'; setVista('ajustes') }} alHerramientas={() => setVista(ultimaPag.current)} alEntrega={() => setEntregaAbierta(true)} />
@@ -375,7 +395,6 @@ export default function App() {
           <Inicio elementos={permitidos} favoritas={favoritas} alLanzar={lanzar} ocupado={enMarcha} encolar={puedeEncolar}
             alDiagnostico={() => { setVista('diagnostico'); void empezarDx('Rapido') }} alEquilibrio={() => setVista('equilibrio')} />
         )}
-        {catalogo && enEstado && <Solapas etiqueta="Estado del equipo" activo={vista} alCambiar={setVista} items={[{ id: 'inicio', texto: 'Resumen' }, { id: 'discos', texto: 'Discos' }]} />}
         {catalogo && vista === 'revision' && (
           <RevisionTotal rev={rt.rev} dx={dx} manual={visibles.filter((e) => e.tipo === 'html' && e.soportado && e.disponible && e.titulo !== 'Placa de vídeo (GPU)' && e.titulo !== 'Prueba de procesador')} elementos={visibles} ocupado={enMarcha && !rt.rev}
             alIniciar={rt.iniciar} alDetener={rt.detener} alMarcar={rt.marcar} alAbrir={(e) => void ejecutar(e)} alTerminarManual={rt.terminarManual} alReiniciar={rt.reiniciar}
@@ -384,8 +403,6 @@ export default function App() {
         {catalogo && vista === 'pruebas' && <Pruebas elementos={visibles} alAbrir={(e) => void ejecutar(e)} alHerramientas={() => setVista(ultimaPag.current)} />}
         {catalogo && vista === 'prueba' && prueba && <Prueba titulo={prueba.titulo} url={prueba.url} alVolver={() => setVista(volverDePrueba.current === 'prueba' ? 'portada' : volverDePrueba.current)} />}
         {catalogo && vista === 'discos' && <Discos admin={estado?.admin} />}
-        {catalogo && enDiag && <Solapas etiqueta="Diagnóstico" activo={vista} alCambiar={setVista} items={[{ id: 'diagnostico', texto: 'Diagnóstico' }, { id: 'equilibrio', texto: 'Qué lo frena' }]} />}
-        {catalogo && enHerr && <Solapas etiqueta="Herramientas" activo={vista} alCambiar={(id) => { ultimaPag.current = id; setVista(id) }} items={[...paginas.filter((p) => p !== PAGINA_PROPIA).map((p) => ({ id: slug(p), texto: p, cuenta: visibles.filter((e) => e.pagina === p).length })), { id: 'combos', texto: 'Combos' }, { id: 'ajustes', texto: 'Ajustes' }]} />}
         {catalogo && vista === 'arreglar' && panelAuto}
         {catalogo && vista === 'combos' && (auto ? panelAuto : <Combos ocupado={enMarcha} alPedir={pedir} alEjecutar={(p) => void empezarCombo(p)} />)}
         {catalogo && vista === 'diagnostico' && (
@@ -403,7 +420,7 @@ export default function App() {
           : <div className="pagina"><p className="vacio">No hay ninguna ejecución reciente.</p></div>)}
         </ErrorBoundary>
       </main>
-      <div className="pie-estado" role="status" aria-live="polite"><span>{pie}</span>{estado && (simple ? <><button className="enlace" style={{ marginLeft: 'auto' }} onClick={() => setAyudaAbierta(true)}>Ayuda</button><button className="enlace" onClick={siguienteTema}>Tema: {NOMBRE_TEMA[modoTema]}</button><button className="enlace" onClick={cambiarModo}>Modo técnico</button></> : <span className="num" style={{ marginLeft: 'auto' }}>{estado.kit}</span>)}</div>
+      <div className="pie-estado" role="status" aria-live="polite"><span>{pie}</span>{estado && (simple ? <><button className="enlace al-final" onClick={() => setAyudaAbierta(true)}>Ayuda</button>{estado.ocultarPeligro && <button className="enlace" onClick={() => void window.kit.donar()}>Apoyar el proyecto</button>}<button className="enlace" onClick={siguienteTema}>Tema: {NOMBRE_TEMA[modoTema]}</button><button className="enlace" onClick={cambiarModo}>Modo técnico</button></> : <span className="num al-final">{estado.kit}</span>)}</div>
       <Confirmar abierto={!!dialogo} titulo={dialogo?.titulo ?? ''} texto={dialogo?.texto ?? ''} detalle={dialogo?.detalle} textoOk={dialogo?.textoOk ?? ''} textoNo={dialogo?.textoNo}
         alAceptar={() => dialogo?.alAceptar()} alCancelar={() => setDialogo(null)} />
       <PerfilDialogo abierto={!!estado && !simple && !estado.preguntado && !perfilCerrado && !!catalogo && !enMarcha} alElegir={(id) => void elegirPerfil(id)} alCerrar={cerrarPerfil} />

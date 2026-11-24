@@ -41,6 +41,7 @@ foreach ($p in $pasos) {
     Write-Output "`n  $($E.Cohete) $($p.N)"
     $global:LASTEXITCODE = 0
     try {
+        $m = Test-ScriptAutorizado $ruta; if ($m) { throw "no se ejecuta $([IO.Path]::GetFileName($ruta)): $m" }
         if ($SoloAnalizar) { & $ruta -SoloAnalizar } else { & $ruta }
         $c = $LASTEXITCODE
         if ($c -eq 2) { Write-Output "  $($E.Info) «$($p.N)» cancelado: se continúa con el siguiente paso." }

@@ -89,7 +89,12 @@ if (-not $SinPreguntas) {
     $BtnAdd.Add_Click({
         $n = $Txt.Text.Trim()
         if ($n -notmatch '^[\w\.\-]+$') { [void][Windows.Forms.MessageBox]::Show('Escribe solo el nombre del paquete (letras, números, puntos y guiones).', 'Nitrit0', 'OK', 'Information'); return }
-        if (-not (Get-AppxPackage -AllUsers -Name "*$n*" -ErrorAction SilentlyContinue)) { [void][Windows.Forms.MessageBox]::Show("No hay ninguna app instalada que coincida con «$n».", 'Nitrit0', 'OK', 'Information'); return }
+        # El nombre se busca como «contiene»: un término corto o genérico («Microsoft», «Windows») casaría con decenas de apps del sistema, así que se pide un nombre concreto y se enseña cuántas coinciden
+        if ($n.Length -lt 5) { [void][Windows.Forms.MessageBox]::Show('Escribe un nombre más concreto (al menos 5 caracteres), por ejemplo Microsoft.Copilot.', 'Nitrit0', 'OK', 'Information'); return }
+        $coinciden = @(Get-AppxPackage -AllUsers -Name "*$n*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name -Unique)
+        if (-not $coinciden.Count) { [void][Windows.Forms.MessageBox]::Show("No hay ninguna app instalada que coincida con «$n».", 'Nitrit0', 'OK', 'Information'); return }
+        if ($coinciden.Count -gt 3) { [void][Windows.Forms.MessageBox]::Show("«$n» coincide con $($coinciden.Count) apps (por ejemplo: $(($coinciden | Select-Object -First 4) -join ', ')). Escribe un nombre más concreto.", 'Nitrit0', 'OK', 'Warning'); return }
+        if ([Windows.Forms.MessageBox]::Show("Se desinstalarán estas apps:`n`n$($coinciden -join "`n")`n`n¿Añadirlas?", 'Nitrit0', 'YesNo', 'Question') -ne 'Yes') { return }
         Add-Fila ([pscustomobject]@{ Tipo = 'App'; Texto = "Desinstalar la app $n (añadida a mano)"; Datos = $n }) $true ''
         $Txt.Text = ''
     })

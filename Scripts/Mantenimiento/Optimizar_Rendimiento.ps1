@@ -36,7 +36,7 @@ try {
         if (-not $hayLimite) { Write-Output "  $($Global:E.OK) El arranque no tiene límite de procesadores: ya usa todos los disponibles ($env:NUMBER_OF_PROCESSORS)." }
         elseif ($SoloAnalizar) { Write-Output "  $($Global:E.Info) Modo análisis: el arranque tiene un límite de procesadores (numproc); se quitaría." }
         elseif (Save-Bcd) {
-            & bcdedit.exe /deletevalue '{current}' numproc | Out-Null
+            & (Join-Path $env:SystemRoot 'System32\bcdedit.exe') /deletevalue '{current}' numproc | Out-Null
             if ($LASTEXITCODE -eq 0) { Write-Output "  $($Global:E.OK) Quitado el límite de procesadores del arranque (copia guardada: se puede deshacer)." }
             else { Write-Output "  $($Global:E.Aviso) No se pudo quitar el límite de procesadores (código $LASTEXITCODE)." }
         }
@@ -79,7 +79,7 @@ try {
         Set-CimInstance -InputObject $pageFileSetting | Out-Null
         Write-Output "  $($Global:E.OK) Archivo $env:SystemDrive\pagefile.sys actualizado correctamente."
     } else {
-        New-CimInstance -ClassName Win32_PageFileSetting -Property @{Name="$env:SystemDrive\pagefile.sys"; InitialSize=$initialSizeMB; MaximumSize=$maximumSizeMB} -ErrorAction SilentlyContinue | Out-Null
+        New-CimInstance -ClassName Win32_PageFileSetting -Property @{Name="$env:SystemDrive\pagefile.sys"; InitialSize=$initialSizeMB; MaximumSize=$maximumSizeMB} -ErrorAction Stop | Out-Null
         Write-Output "  $($Global:E.OK) Archivo $env:SystemDrive\pagefile.sys creado y dimensionado."
     }
     }

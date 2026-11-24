@@ -25,6 +25,7 @@ Add-Type -AssemblyName System.Drawing
 
 if ($SoloAnalizar) { $Accion = 'INFO' }   # solo la auditoría de RAM: no libera memoria ni toca SysMain ni la compresión
 if (-not $Accion -and $env:NIT_AUTO) { $Accion = 'TODO' }
+if ($Accion -and $Accion -ne 'INFO') { Assert-Admin 'liberar memoria' }
 $script:AccionRAM = 'CANCELAR'
 if ($Accion) { $script:AccionRAM = $Accion }
 else {

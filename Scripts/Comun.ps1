@@ -69,6 +69,16 @@ function Write-Progreso([int]$Actual, [int]$Total, [string]$Texto = '') {
 function Test-ReinicioPendiente {
     (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
 }
+# Antes de operaciones largas que dejan el equipo a medias si se cortan: portátil con batería o reinicio pendiente. Avisa y deja decidir; si la persona dice que no, sale como cancelado.
+function Confirm-EquipoListo([string]$Operacion = 'esta operación') {
+    $a = New-Object Collections.Generic.List[string]
+    try { $b = @(Get-CimInstance -ClassName Win32_Battery -ErrorAction Stop); if ($b.Count -and $b[0].BatteryStatus -eq 1) { $a.Add('el portátil va con batería: conecta el cargador') } } catch { }
+    if (Test-ReinicioPendiente) { $a.Add('hay un reinicio pendiente de Windows') }
+    if (-not $a.Count) { return }
+    $t = "Antes de $Operacion ten en cuenta que $($a -join ' y ')."
+    Write-Output "  $($Global:E.Aviso) $t"
+    if (-not (Confirm-Accion "$t`n`n¿Continuar de todos modos?")) { Exit-Kit 'Cancelado' 'Cancelado: no se ha cambiado nada.' }
+}
 function Assert-Admin([string]$Motivo = 'continuar') { if (-not (Test-EsAdmin)) { Exit-Kit 'Error' "Hace falta administrador para $Motivo. Ábrelo desde el kit." } }
 
 # Lee un .psd1 como DATOS: solo acepta literales (texto, números, $true/$false/$null, listas y tablas). Si el archivo lleva código falla, en vez de ejecutarlo.
@@ -129,7 +139,7 @@ function Test-ScriptAutorizado([string]$Ruta) {
 }
 # Extensiones de Apps\ que llevan huella SHA-256 (el resto de recursos pesados solo se comprueba por tamaño).
 function Test-HuellaRequerida([string]$Rel) {
-    ($Rel -like 'Scripts\*') -or ($Rel -like 'App\datos\*') -or ($Rel -eq 'Nitrit0.exe') -or ($Rel -eq 'Nitrit0_Limpieza.exe') -or (($Rel -like 'Apps\*') -and ([IO.Path]::GetExtension($Rel) -in '.exe', '.dll', '.sys', '.msi', '.ps1', '.bat', '.cmd', '.vbs', '.js'))
+    ($Rel -like 'Scripts\*') -or ($Rel -like 'App\datos\*') -or ($Rel -eq 'Nitrit0.exe') -or ($Rel -eq 'Nitrit0_Limpieza.exe') -or ($Rel -eq 'Nitrit0_Antivirus.exe') -or ($Rel -eq 'Nitrit0_Clonador.exe') -or (($Rel -like 'Apps\*') -and ([IO.Path]::GetExtension($Rel) -in '.exe', '.dll', '.sys', '.msi', '.ps1', '.bat', '.cmd', '.vbs', '.js'))
 }
 
 # ---------------------------------------------------------------------
@@ -167,14 +177,14 @@ function Test-KitDisponible { try { [IO.File]::Exists((Join-Path $Global:NitKit.
 
 # Si el pendrive vuelve con otra letra, lo localiza por el identificador guardado en Datos\kit.id
 function Find-KitReconectado {
-    $raiz = $Global:NitKit.Raiz
-    $rel = if ($raiz.Length -gt 3 -and $raiz[1] -eq ':') { $raiz.Substring(3) } else { $null }
-    if (-not $rel) { return $null }
+    $raiz = ([string]$Global:NitKit.Raiz).TrimEnd('\')   # Initialize-Kit la guarda sin barra final: «E:» si el kit está en la raíz de la unidad
+    if ($raiz.Length -lt 2 -or $raiz[1] -ne ':') { return $null }
+    $rel = if ($raiz.Length -gt 3) { $raiz.Substring(3) } else { '' }   # '' = kit en la raíz del pendrive
     # Extraíbles primero: si el kit también está copiado en el disco duro con el mismo kit.id, manda el pendrive
     foreach ($d in ([IO.DriveInfo]::GetDrives() | Sort-Object { if ($_.DriveType -eq 'Removable') { 0 } else { 1 } })) {
         try {
             if (-not $d.IsReady) { continue }
-            $c = Join-Path $d.RootDirectory.FullName $rel; $f = Join-Path $c 'Datos\kit.id'
+            $c = if ($rel) { Join-Path $d.RootDirectory.FullName $rel } else { $d.RootDirectory.FullName.TrimEnd('\') }; $f = Join-Path $c 'Datos\kit.id'
             if ([IO.File]::Exists($f) -and ([IO.File]::ReadAllText($f).Trim() -eq $Global:NitKit.Id)) { return $c }
         } catch { }
     }
@@ -236,8 +246,9 @@ function Copy-ConReintento([string]$Origen, [string]$Destino, [int]$Intentos = 4
         $fi = $null; $fo = $null
         try {
             if (-not (Test-Path -LiteralPath $Origen)) { [void](Wait-Kit 120); if (-not (Test-Path -LiteralPath $Origen)) { throw "No existe $Origen" } }
-            $tam = (Get-Item -LiteralPath $Origen).Length
-            if ((Test-Path -LiteralPath $Destino) -and (Get-Item -LiteralPath $Destino).Length -eq $tam) { return $Destino }
+            $origItem = Get-Item -LiteralPath $Origen; $tam = $origItem.Length
+            # Se reutiliza la copia solo si coincide el tamaño Y la fecha: un binario actualizado con el mismo tamaño debe volver a copiarse
+            if ((Test-Path -LiteralPath $Destino) -and (Get-Item -LiteralPath $Destino).Length -eq $tam -and (Get-Item -LiteralPath $Destino).LastWriteTimeUtc -eq $origItem.LastWriteTimeUtc) { return $Destino }
             $ini = 0L
             if ((Test-Path -LiteralPath $Destino) -and $i -gt 1) { $ini = [Math]::Max(0L, (Get-Item -LiteralPath $Destino).Length - 4MB) }   # reanudar con margen de seguridad
             $fi = [IO.File]::Open($Origen, 'Open', 'Read', 'ReadWrite')
@@ -249,6 +260,7 @@ function Copy-ConReintento([string]$Origen, [string]$Destino, [int]$Intentos = 4
             }
             $fo.Flush(); $fo.Dispose(); $fi.Dispose(); $fo = $null; $fi = $null
             if ((Get-Item -LiteralPath $Destino).Length -ne $tam) { throw 'El tamaño copiado no coincide.' }
+            [IO.File]::SetLastWriteTimeUtc($Destino, $origItem.LastWriteTimeUtc)   # misma fecha que el origen: así la comprobación de arriba reconoce la copia buena la próxima vez
             return $Destino
         } catch {
             $ultimaEx = $_
@@ -276,7 +288,7 @@ function Stop-Arbol([int]$ProcId) { try { & (Join-Path $env:SystemRoot 'System32
 # Devuelve @{ Codigo; TiempoAgotado; Salida }. Muestra un latido cada $LatidoSeg s con la última línea útil de la salida.
 function Invoke-Proceso([string]$Ruta, [string]$Argumentos = '', [int]$TimeoutSeg = 600, [string]$Etiqueta = 'Proceso', [int]$LatidoSeg = 20, [switch]$MostrarSalida) {
     $so = Join-Path $env:TEMP ("nit_so_{0}.txt" -f [guid]::NewGuid().ToString('N')); $se = $so + '.err'
-    $res = [pscustomobject]@{ Codigo = -9998; TiempoAgotado = $false; Salida = '' }
+    $res = [pscustomobject]@{ Codigo = -9998; TiempoAgotado = $false; Salida = ''; Error = '' }
     try {
         $sp = @{ FilePath = $Ruta; PassThru = $true; WindowStyle = 'Hidden'; RedirectStandardOutput = $so; RedirectStandardError = $se }
         if ($Argumentos) { $sp.ArgumentList = $Argumentos }
@@ -300,7 +312,12 @@ function Invoke-Proceso([string]$Ruta, [string]$Argumentos = '', [int]$TimeoutSe
             Start-Sleep -Milliseconds 500
         }
         if (-not $res.TiempoAgotado) { $p.WaitForExit(); $res.Codigo = [int]$p.ExitCode }
-        try { $res.Salida = (((Get-Content -LiteralPath $so -ErrorAction SilentlyContinue) -join "`n") -replace "`0", '') } catch { }
+        try {
+            $outTxt = (((Get-Content -LiteralPath $so -ErrorAction SilentlyContinue) -join "`n") -replace "`0", '')
+            $errTxt = (((Get-Content -LiteralPath $se -ErrorAction SilentlyContinue) -join "`n") -replace "`0", '')   # lo que la herramienta cuenta por stderr (el motivo de un fallo) ya no se pierde
+            $res.Error = $errTxt
+            $res.Salida = if ($errTxt) { (@($outTxt, $errTxt) | Where-Object { $_ }) -join "`n" } else { $outTxt }
+        } catch { }
         if ($MostrarSalida -and $res.Salida) { ($res.Salida -split "`n" | Where-Object { $_ -match '[\p{L}\p{N}]{3}' -and $_ -notmatch '^\s*[\-\\|/█▒░ ]+\s*$' } | Select-Object -Last 8) | ForEach-Object { Write-Host "        $_" } }
         Write-Log "$Etiqueta terminó con código $($res.Codigo)"
     } catch { Write-Log "$Etiqueta no pudo ejecutarse: $($_.Exception.Message)" 'ERROR'; Write-Host "  $($Global:E.Error) No se pudo ejecutar ${Etiqueta}: $($_.Exception.Message)" }
@@ -316,7 +333,7 @@ function Test-Internet {
 }
 
 # Descarga con reintentos y reanudación (curl.exe si existe; si no, Invoke-WebRequest). Devuelve $true/$false.
-function Get-Descarga([string]$Url, [string]$Destino, [int]$TimeoutSeg = 300, [int]$Intentos = 3, [string]$Etiqueta = 'Descarga') {
+function Get-Descarga([string]$Url, [string]$Destino, [int]$TimeoutSeg = 300, [int]$Intentos = 3, [string]$Etiqueta = 'Descarga', [string]$Sha256 = '') {
     # Las comillas van a mano en la línea de curl: una URL o ruta con « " » inyectaría opciones (p. ej. otro -o que pise un archivo)
     if ($Url -notmatch '^https?://[^\s"]+$' -or $Destino -match '["<>|]') { Write-Log "$Etiqueta rechazada: URL o destino no válidos" 'ERROR'; Write-Host "    $($Global:E.Error) $Etiqueta rechazada: URL o destino no válidos."; return $false }
     New-Item -ItemType Directory -Force (Split-Path $Destino) | Out-Null
@@ -327,7 +344,15 @@ function Get-Descarga([string]$Url, [string]$Destino, [int]$TimeoutSeg = 300, [i
                 $r = Invoke-Proceso $curl "-L -s -S --fail --connect-timeout 15 --max-time $TimeoutSeg -C - -o `"$Destino`" `"$Url`"" ($TimeoutSeg + 20) "$Etiqueta" 10
                 if ($r.Codigo -ne 0) { throw "curl terminó con código $($r.Codigo)" }
             } else { Invoke-WebRequest -Uri $Url -OutFile $Destino -UseBasicParsing -TimeoutSec $TimeoutSeg -Headers @{ 'User-Agent' = 'Mozilla/5.0 Nitrit0' } -ErrorAction Stop }
-            if ((Test-Path -LiteralPath $Destino) -and (Get-Item -LiteralPath $Destino).Length -gt 10KB) { return $true }
+            if ((Test-Path -LiteralPath $Destino) -and (Get-Item -LiteralPath $Destino).Length -gt 10KB) {
+                # Huella opcional: si el llamador la conoce, un archivo distinto se borra y no se da por bueno (no se reintenta: otro intento bajaría lo mismo)
+                if ($Sha256 -and ((Get-FileHash -LiteralPath $Destino -Algorithm SHA256).Hash -ne $Sha256.Trim())) {
+                    Remove-Item -LiteralPath $Destino -Force -ErrorAction SilentlyContinue
+                    Write-Log "$Etiqueta descartada: la huella SHA-256 no coincide" 'ERROR'; Write-Host "    $($Global:E.Error) $Etiqueta descartada: la huella SHA-256 no coincide con la esperada."
+                    return $false
+                }
+                return $true
+            }
             throw 'Archivo descargado vacío o demasiado pequeño.'
         } catch {
             Write-Log "$Etiqueta falló (intento $i/$Intentos): $($_.Exception.Message)" 'AVISO'
@@ -355,7 +380,7 @@ function Test-ModoPublico {
 # Carpeta de salida dentro de Datos; los informes ('Informes' y sus subcarpetas) van a %TEMP%\Nitrit0_Cache\Informes en el pack público,
 # para que un pendrive que pasa por varios equipos no acumule datos de todos (en el pack personal, el técnico los conserva en Datos\Informes).
 function Get-CarpetaSalida([string]$Sub = 'Salidas') {
-    $base = if ($Sub -match '^Informes(\\|$)' -and (Test-ModoPublico)) { $Global:NitKit.Cache } else { $Global:NitKit.Datos }
+    $base = Get-BaseTrabajo   # en el pack público, todo va a la caché del PC y nunca al pendrive
     $d = Join-Path $base $Sub; try { New-Item -ItemType Directory -Force $d | Out-Null } catch { }; $d
 }
 
@@ -427,7 +452,7 @@ function Set-ValorSeguro([string]$Ruta, [string]$Nombre, $Valor, [string]$Tipo =
     if ($claveExistia) { try { $it = Get-Item -LiteralPath $Ruta; if ($it.GetValueNames() -contains $nombreReal) { $existia = $true; $prev = $it.GetValue($nombreReal, $null, 'DoNotExpandEnvironmentNames'); $tipoPrev = $it.GetValueKind($nombreReal).ToString() } } catch { } }
     $padreExistia = $true; try { $padreExistia = Test-Path -LiteralPath (Split-Path $Ruta -Parent) } catch { }
     Save-Cambio @{ Tipo = 'Registro'; Ruta = $Ruta; Nombre = $Nombre; ClaveExistia = $claveExistia; PadreExistia = $padreExistia; ValorExistia = $existia; Previo = $prev; TipoPrevio = $tipoPrev }
-    if (-not $claveExistia) { New-Item -Path $Ruta -Force | Out-Null }
+    if (-not $claveExistia) { New-Item -Path ([Management.Automation.WildcardPattern]::Escape($Ruta)) -Force | Out-Null }   # New-Item no tiene -LiteralPath: se escapan «[» y «]»
     Set-ItemProperty -LiteralPath $Ruta -Name $Nombre -Value $Valor -Type $Tipo -Force
     # Se relee: si otro programa o una directiva lo ha vuelto a cambiar, se anota en el registro en vez de dar el cambio por hecho
     if ($Valor -isnot [array] -and $Tipo -in 'DWord', 'QWord', 'String', 'ExpandString') {
@@ -435,12 +460,11 @@ function Set-ValorSeguro([string]$Ruta, [string]$Nombre, $Valor, [string]$Tipo =
     }
 }
 function Set-ServicioSeguro([string]$Nombre, [string]$Inicio = 'Disabled', [switch]$Detener) {
-    $s = Get-CimInstance Win32_Service -Filter "Name='$Nombre'" -ErrorAction SilentlyContinue
+    $s = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f ($Nombre -replace "'", "''")) -ErrorAction SilentlyContinue   # comillas simples dobladas: el nombre va dentro de un filtro WQL
     if (-not $s) { return $false }
     Save-Cambio @{ Tipo = 'Servicio'; Servicio = $Nombre; InicioPrevio = $s.StartMode; EstadoPrevio = $s.State }
-    if ($Detener -and $s.State -eq 'Running') { Stop-Service -Name $Nombre -Force -ErrorAction SilentlyContinue }
-    Set-Service -Name $Nombre -StartupType $Inicio -ErrorAction SilentlyContinue
-    $true
+    if ($Detener -and $s.State -eq 'Running') { try { Stop-Service -Name $Nombre -Force -ErrorAction Stop } catch { Write-Log "Set-ServicioSeguro: no se pudo detener '$Nombre': $($_.Exception.Message)" 'AVISO' } }
+    try { Set-Service -Name $Nombre -StartupType $Inicio -ErrorAction Stop; $true } catch { Write-Log "Set-ServicioSeguro: no se pudo cambiar el inicio de '$Nombre': $($_.Exception.Message)" 'AVISO'; $false }
 }
 function Set-DnsSeguro([int]$Interfaz, [string[]]$Servidores, [switch]$Automatico) {
     $prev = @(); $auto = $true

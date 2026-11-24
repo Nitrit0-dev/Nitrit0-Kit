@@ -1,5 +1,5 @@
 ﻿{
-    "generado":  "2026-11-20T22:03:13",
+    "generado":  "2026-11-24T15:08:26",
     "paginas":  {
                     "Comprobar":  [
                                       "Resumen y salud",
@@ -1995,6 +1995,28 @@
                           "ayuda":  "QUÉ HACE: abre una ventana con los adaptadores de red y su configuración actual. Permite IP manual (IP, máscara, puerta y DNS), volver a DHCP, aplicar perfiles guardados (Datos\\Perfiles_IP.json), activar o desactivar el adaptador y liberar o renovar el DHCP.\r\nSE DESHACE: la IP y el DNS anteriores quedan guardados; Mantenimiento \u003e Deshacer cambios los devuelve.\r\nOJO: si cambias la IP del adaptador por el que llega Internet o una conexión remota, se cortará. Sin ventana: -Dhcp o -IP \u003cip\u003e -Mascara -Puerta -Dns, y -Adaptador \u003cnombre\u003e."
                       },
                       {
+                          "id":  "Certificados_Arranque_Seguro.ps1",
+                          "titulo":  "Certificados de arranque seguro",
+                          "descripcion":  "Los certificados de Microsoft de 2011 caducan en 2026: comprueba si el equipo ya tiene los de 2023 y, si faltan, ofrece lanzar la actualización.",
+                          "categoria":  "Diagnóstico",
+                          "pagina":  "Comprobar",
+                          "grupo":  "Resumen y salud",
+                          "oculta":  false,
+                          "peligro":  false,
+                          "publicoOk":  false,
+                          "tipo":  "script",
+                          "exe":  null,
+                          "script":  "Mantenimiento\\Certificados_Arranque_Seguro.ps1",
+                          "accion":  null,
+                          "run":  null,
+                          "runArgs":  null,
+                          "cmd":  null,
+                          "html":  null,
+                          "uri":  null,
+                          "timeout":  300,
+                          "ayuda":  "Mira Secure Boot, las variables UEFI db y KEK y el estado de la actualización de Windows. No cambia nada hasta que lo confirmas. Si faltan certificados y confirmas, crea un punto de restauración, suspende BitLocker durante 2 reinicios y lanza la tarea de Windows que los aplica; después hay que reiniciar. En algún equipo la BIOS pide la clave de BitLocker al reiniciar: ten la clave de recuperación. Necesita administrador."
+                      },
+                      {
                           "id":  "Clonar_Disco.ps1",
                           "titulo":  "Clonar disco (Windows a otro disco)",
                           "descripcion":  "Cambias de disco (HDD a SSD o a uno más pequeño) y quieres llevarte Windows tal cual: copia el sistema, los datos y deja el arranque listo.",
@@ -2367,6 +2389,28 @@
                           "uri":  null,
                           "timeout":  900,
                           "ayuda":  "El HOSTS fuerza que un nombre de web vaya a otra dirección; lo usan los bloqueadores de anuncios y también virus y programas viejos. Marca como sospechosas las redirecciones de nombres delicados (Windows Update, antivirus, bancos...). Antes de guardar hace una copia en Datos\\Respaldo\\Hosts y se puede restaurar el contenido original de Windows. Hace falta administrador para guardar."
+                      },
+                      {
+                          "id":  "Entorno_Corporativo.ps1",
+                          "titulo":  "Equipo de empresa",
+                          "descripcion":  "Vas a tocar un equipo que quizá no es de un particular: comprueba si lo gestiona una empresa (dominio, Entra ID, Intune, directivas de grupo).",
+                          "categoria":  "Diagnóstico",
+                          "pagina":  "Comprobar",
+                          "grupo":  "Resumen y salud",
+                          "oculta":  false,
+                          "peligro":  false,
+                          "publicoOk":  false,
+                          "tipo":  "script",
+                          "exe":  null,
+                          "script":  "Mantenimiento\\Entorno_Corporativo.ps1",
+                          "accion":  null,
+                          "run":  null,
+                          "runArgs":  null,
+                          "cmd":  null,
+                          "html":  null,
+                          "uri":  null,
+                          "timeout":  120,
+                          "ayuda":  "Solo lee el registro y los datos del sistema; no cambia nada. Si hay indicios de gestión, avisa a quien lo administra antes de tocar red, directivas, usuarios o programas. No ve lo que una empresa pueda aplicar más tarde."
                       },
                       {
                           "id":  "Ficha_Drivers.ps1",
@@ -3487,7 +3531,7 @@
                           "cmd":  null,
                           "html":  null,
                           "uri":  null,
-                          "timeout":  1800,
+                          "timeout":  9000,
                           "ayuda":  "CUÁNDO USARLO: cuando el equipo tiene fallos inexplicables, pantallazos, archivos corruptos de Windows o la tienda Microsoft Store no abre/no descarga.\r\nEjecuta en orden: chkdsk /scan, DISM /RestoreHealth, sfc /scannow y vaciado de caché de la Store."
                       },
                       {

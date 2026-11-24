@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../componentes/Basicos'
 import type { Ejecucion as Marcha, EnCola } from '../tipos'
 
@@ -49,8 +49,9 @@ export default function Ejecucion({ e, alCancelar, alVolver, alMensaje, siguient
         acciones={e.fin
           ? <>
               <button className="boton" onClick={() => void copiar()}>{copiado ? 'Copiado' : 'Copiar salida'}</button>
-              {e.informe && <button className="boton" onClick={() => void window.kit.abrirInforme(e.informe!.ruta).then((r: { mensaje: string }) => alMensaje(r.mensaje))}>Abrir en el navegador</button>}
-              {e.fin.registro && <button className="boton" onClick={() => void window.kit.abrirRegistro(e.fin!.registro!).then((r: { mensaje: string }) => alMensaje(r.mensaje))}>Abrir registro</button>}
+              {e.informe && <button className="boton" onClick={() => void window.kit.abrirInforme(e.informe!.ruta).then((r: { mensaje: string }) => alMensaje(r.mensaje)).catch(() => alMensaje('No se pudo abrir el informe.'))}>Abrir en el navegador</button>}
+              {e.informe && <button className="boton" onClick={() => void window.kit.informePdf(e.informe!.ruta).then((r: { mensaje: string }) => alMensaje(r.mensaje)).catch(() => alMensaje('No se pudo crear el PDF.'))}>Guardar como PDF</button>}
+              {e.fin.registro && <button className="boton" onClick={() => void window.kit.abrirRegistro(e.fin!.registro!).then((r: { mensaje: string }) => alMensaje(r.mensaje)).catch(() => alMensaje('No se pudo abrir el registro.'))}>Abrir registro</button>}
               {siguiente && e.fin.correcto && <button className="boton principal-b" onClick={siguiente.accion}>{siguiente.texto}</button>}
               <button className={siguiente && e.fin.correcto ? 'boton' : 'boton principal-b'} onClick={alVolver}>Volver al kit</button>
             </>

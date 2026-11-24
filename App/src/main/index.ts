@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, systemPreferences, Tray } from 'electron'
+﻿import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell, systemPreferences, Tray } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -39,7 +39,7 @@ const colores = {
 }
 let ventana: BrowserWindow
 let salirDeVerdad = false
-const enBandeja = process.argv.includes('--bandeja')   // arranque con Windows: la ventana no se muestra, solo el icono
+const enBandeja = process.argv.includes('--bandeja')
 
 // ---------- Catálogo ----------
 interface Elemento {
@@ -65,6 +65,23 @@ function leerCatalogo() {
 let manifiesto: Map<string, string> | null = null
 /** null si el script es el que se generó; si no, el motivo por el que no debe ejecutarse. */
 function motivoBloqueo(ruta: string): string | null {
+  const m = comprobarHuella(ruta)
+  if (!m) return null
+  manifiesto = null   // regenerar la integridad con la app abierta no debe obligar a reiniciarla: se relee una vez antes de bloquear
+  return comprobarHuella(ruta)
+}
+/** Ficheros .ps1 que un script ya verificado carga con Join-Path $PSScriptRoot '…' (motores, historial, ejecutor…): también deben figurar en la integridad y coincidir. */
+function dependencias(ruta: string, vistos = new Map<string, string>()): string[] {
+  try {
+    for (const m of readFileSync(ruta, 'utf8').matchAll(/Join-Path \$PSScriptRoot '([^']+\.ps1)'/g)) {
+      const d = resolve(dirname(ruta), m[1])
+      if (vistos.has(d.toLowerCase()) || vistos.size >= 30 || !existsSync(d)) continue
+      vistos.set(d.toLowerCase(), d); dependencias(d, vistos)
+    }
+  } catch { /* si no se lee, ya lo bloquea la comprobación del propio script */ }
+  return [...vistos.values()]
+}
+function comprobarHuella(ruta: string): string | null {
   try {
     if (!manifiesto) {
       const lista = JSON.parse(quitarBom(readFileSync(join(datos, 'Integridad.json'), 'utf8'))) as { R: string; H?: string }[]
@@ -175,11 +192,14 @@ function psLanzar(exe: string, args: string[], cwd?: string, elevar = false) {
   const verbo = elevar ? ' -Verb RunAs' : ''
   suelto(spawn(POWERSHELL, ['-NoProfile', '-Command', `Start-Process -FilePath '${esc(exe)}'${lista}${dir}${verbo}`], { windowsHide: true, stdio: 'ignore', detached: true }), exe)
 }
+let elevando = false
 /** Reabre la propia app con permisos de administrador (UAC). Si se cancela el permiso, esta ventana sigue como estaba. */
 async function reabrirComoAdmin(): Promise<{ ok: boolean; mensaje: string }> {
   if (dev) return { ok: false, mensaje: 'En modo desarrollo no se puede: abre la app empaquetada.' }
   if (marcha) return { ok: false, mensaje: `Ya hay algo en marcha: ${marcha.titulo}. Espera a que termine.` }
-  if (await esAdmin()) return { ok: false, mensaje: 'Ya tiene permisos de administrador.' }
+  if (elevando) return { ok: false, mensaje: 'Ya se está pidiendo el permiso de administrador.' }
+  elevando = true   // mientras dura el aviso de Windows no arranca ningún script: la app se cerrará si se concede
+  if (await esAdmin()) { elevando = false; return { ok: false, mensaje: 'Ya tiene permisos de administrador.' } }
   // Mismo .exe con el que se abrió: el lanzador fino de la carpeta del kit (Nitrit0.exe), el .exe único o, si no, el propio programa
   const lanzador = join(raiz, 'Nitrit0.exe')
   const exe = process.env.PORTABLE_EXECUTABLE_FILE ?? (existsSync(lanzador) ? lanzador : process.execPath)
@@ -189,9 +209,10 @@ async function reabrirComoAdmin(): Promise<{ ok: boolean; mensaje: string }> {
     const h = spawn(POWERSHELL, ['-NoProfile', '-Command', `try { Start-Process -FilePath '${esc(exe)}' -Verb RunAs -ErrorAction Stop } catch { exit 1 }`], { windowsHide: true, stdio: 'ignore' })
     h.on('error', () => ok(1)); h.on('exit', (c) => ok(c ?? 1))
   })
-  if (codigo !== 0) { app.requestSingleInstanceLock(); historial('Reabrir como administrador: cancelado o fallido'); return { ok: false, mensaje: 'No se concedió el permiso de administrador. Sigues con la ventana de antes.' } }
+  if (codigo !== 0) { elevando = false; app.requestSingleInstanceLock(); historial('Reabrir como administrador: cancelado o fallido'); return { ok: false, mensaje: 'No se concedió el permiso de administrador. Sigues con la ventana de antes.' } }
   historial('Reabierta con permisos de administrador')
-  setTimeout(() => app.quit(), 400)
+  // Con el arranque con Windows activado, cerrar la ventana solo la esconde en la bandeja: sin esto la copia sin permisos se quedaba viva (zombi) junto a la nueva
+  setTimeout(() => { salirDeVerdad = true; app.quit() }, 400)
   return { ok: true, mensaje: 'Reabriendo como administrador…' }
 }
 const ventanaCmd = (orden: string) => psLanzar(CMD, ['/k', orden])
@@ -209,6 +230,73 @@ function lanzarApp(e: Elemento): { ok: boolean; mensaje: string } {
   h.unref()
   historial(`Abrió ${e.titulo} (${exe})`)
   return { ok: true, mensaje: `Abierto: ${e.titulo}.` }
+}
+
+/** Nitrit0_Antivirus.exe (solo pack personal). Se abre por el Explorador para que arranque SIN administrador aunque el kit lo sea: con permisos elevados Windows no deja arrastrarle archivos desde el Explorador. */
+const exeAntivirus = join(raiz, 'Nitrit0_Antivirus.exe')
+function abrirAntivirus(): { ok: boolean; mensaje: string } {
+  if (!existsSync(exeAntivirus)) return { ok: false, mensaje: 'Este pack no lleva el antivirus.' }
+  const bloqueo = motivoBloqueo(exeAntivirus)
+  if (bloqueo) { historial(`BLOQUEADO Antivirus: ${bloqueo}`); return { ok: false, mensaje: `Error crítico: no se abre el antivirus porque Nitrit0_Antivirus.exe ${bloqueo}. Si lo has recompilado tú, ejecuta Regenerar_Integridad.ps1.` } }
+  spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'explorer.exe'), [exeAntivirus], { detached: true, stdio: 'ignore' }).unref()   // ruta completa: la app puede ir elevada
+  historial(`Abrió Nitrit0 Antivirus (${exeAntivirus})`)
+  return { ok: true, mensaje: 'Abierto: Nitrit0 Antivirus.' }
+}
+
+/** «Clonar disco» (solo pack personal) no se ejecuta como script con ventanas de PowerShell: abre Nitrit0_Clonador.exe, que lleva el selector y la confirmación dentro de su propia pantalla. */
+const exeClonador = join(raiz, 'Nitrit0_Clonador.exe')
+function abrirClonador(): { ok: boolean; mensaje: string } {
+  if (!existsSync(exeClonador)) return { ok: false, mensaje: 'Este pack no lleva el clonador de discos.' }
+  const bloqueo = motivoBloqueo(exeClonador)
+  if (bloqueo) { historial(`BLOQUEADO Clonador: ${bloqueo}`); return { ok: false, mensaje: `Error crítico: no se abre el clonador porque Nitrit0_Clonador.exe ${bloqueo}. Si lo has recompilado tú, ejecuta Regenerar_Integridad.ps1.` } }
+  const h = spawn(exeClonador, [], { cwd: raiz, detached: true, stdio: 'ignore' })
+  h.once('error', () => psLanzar(exeClonador, [], raiz, true))   // si Windows rechaza el arranque directo (pide administrador), se reintenta pidiendo permiso
+  h.unref()
+  historial(`Abrió Nitrit0 Clonador (${exeClonador})`)
+  return { ok: true, mensaje: 'Abierto: Nitrit0 Clonador.' }
+}
+
+// ---------- ¿Hay una versión superior de Windows? Solo pregunta a Windows Update (categoría «Upgrades», por su GUID, que no se traduce); no descarga ni instala nada ----------
+const PS_VERSION_WINDOWS = "$ErrorActionPreference = 'Stop'; try { $b = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher(); $r = $b.Search(\"IsInstalled=0 and Type='Software' and CategoryIDs contains '3689bdc8-b205-4af4-8d4a-a63924c5e9d5'\"); @{ Ok = $true; Titulos = @($r.Updates | ForEach-Object { [string]$_.Title }) } | ConvertTo-Json -Compress } catch { @{ Ok = $false } | ConvertTo-Json -Compress }"
+let versionWinEnCurso: Promise<{ estado: 'al-dia' | 'hay-nueva' | 'error'; titulo?: string }> | null = null
+function comprobarVersionWindows() {
+  versionWinEnCurso ??= new Promise((ok) => execFile(POWERSHELL, ['-NoProfile', '-NonInteractive', '-Command', PS_VERSION_WINDOWS], { windowsHide: true, timeout: 180000, env: entornoLimpio() }, (err, salida) => {
+    versionWinEnCurso = null
+    if (err) return ok({ estado: 'error' as const })
+    try {
+      const j = JSON.parse(String(salida).trim()) as { Ok?: boolean; Titulos?: string | string[] }
+      if (!j.Ok) return ok({ estado: 'error' as const })
+      const t = ([] as string[]).concat(j.Titulos ?? []).filter(Boolean)
+      ok(t.length ? { estado: 'hay-nueva' as const, titulo: t[0] } : { estado: 'al-dia' as const })
+    } catch { ok({ estado: 'error' as const }) }
+  }))
+  return versionWinEnCurso
+}
+
+// ---------- Historial de cambios: lo que los scripts del kit han cambiado en este equipo y se puede deshacer ----------
+// Lo escribe Comun.ps1 (Start-OperacionSegura) en Datos\Respaldo\Cambios (personal) o %TEMP%\Nitrit0_Cache\Cambios (público). Deshacer_Cambios.ps1 renombra con _DESHECHO lo ya revertido.
+interface SesionCambios { id: string; nombre: string; fecha: string; cambios: number; deshecho: boolean }
+function listarCambios(): SesionCambios[] {
+  const lista: SesionCambios[] = []
+  for (const base of [join(datos, 'Respaldo', 'Cambios'), join(cacheKit, 'Cambios')]) {
+    let carpetas: string[] = []
+    try { carpetas = readdirSync(base) } catch { continue }
+    for (const n of carpetas) {
+      if (!/^\d{8}_\d{6}_[\w-]+$/.test(n)) continue
+      const j = leerJson<{ Nombre?: string; Fecha?: string; Equipo?: string; Cambios?: unknown }>(join(base, n, 'cambios.json'), {})
+      if (!j.Nombre) continue
+      // Los respaldos viajan en el pendrive de cliente en cliente: solo se ofrecen los de ESTE equipo (deshacer los de otro cambiaría su red, nombre o arranque aquí)
+      if (j.Equipo && String(j.Equipo).toLowerCase() !== os.hostname().toLowerCase()) continue
+      lista.push({ id: n, nombre: String(j.Nombre).slice(0, 120), fecha: String(j.Fecha ?? ''), cambios: Array.isArray(j.Cambios) ? j.Cambios.length : 0, deshecho: n.endsWith('_DESHECHO') })
+    }
+  }
+  return lista.sort((a, b) => b.id.localeCompare(a.id)).slice(0, 40)
+}
+function deshacerCambio(id: unknown): { ok: boolean; mensaje: string } {
+  if (typeof id !== 'string' || !listarCambios().some((x) => x.id === id && !x.deshecho)) return { ok: false, mensaje: 'Ese cambio ya no está disponible para deshacer.' }
+  const el = leerCatalogo().elementos.find((x) => x.id === 'Deshacer_Cambios.ps1')
+  if (!el) return { ok: false, mensaje: 'No encuentro la herramienta «Deshacer cambios».' }
+  return ejecutarScript(el, { NIT_AUTO: '1', NIT_DESHACER_ID: id })
 }
 
 /** shell.openPath devuelve un texto de error (vacío si fue bien): se pasa tal cual a la interfaz en vez de decir siempre «abierto». */
@@ -246,7 +334,7 @@ async function lanzarOtro(e: Elemento): Promise<{ ok: boolean; mensaje: string }
         const bateria = e.accion === 'CmdBateria'
         return ejecutarScript({ id: 'powercfg', titulo: bateria ? 'Informe de batería' : 'Informe de energía (60 s)', script: 'Powercfg_Para_App.ps1', timeout: 300 } as Elemento, { NIT_POWERCFG: bateria ? 'battery' : 'energy' })
       }
-      if (e.accion === 'SmartDetalle') { const bloqueo = motivoBloqueo(join(raiz, 'Scripts', 'SMART_Detalle.ps1')); if (bloqueo) return { ok: false, mensaje: `Error crítico: SMART_Detalle.ps1 ${bloqueo}.` }; psLanzar(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', join(raiz, 'Scripts', 'SMART_Detalle.ps1')]); historial('Abrió SMART detallado'); return { ok: true, mensaje: 'Abierto: SMART detallado.' } }
+      if (e.accion === 'SmartDetalle') { const bloqueo = motivoBloqueo(join(raiz, 'Scripts', 'SMART_Detalle.ps1')); if (bloqueo) return { ok: false, mensaje: `Error crítico: SMART_Detalle.ps1 ${bloqueo}.` }; psLanzar(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', `"${join(raiz, 'Scripts', 'SMART_Detalle.ps1')}"`]);   /* Start-Process no entrecomilla: con espacios en la ruta, -File se partiría */ historial('Abrió SMART detallado'); return { ok: true, mensaje: 'Abierto: SMART detallado.' } }
       break
     }
   }
@@ -296,10 +384,12 @@ const stamp = () => { const d = new Date(), p = (n: number) => String(n).padStar
 
 function ejecutarScript(e: Elemento, extraEnv: Record<string, string> = {}, clase: 'script' | 'diagnostico' | 'equilibrio' | 'auto' = 'script', alFin?: (correcto: boolean) => void): { ok: boolean; mensaje: string } {
   if (marcha) return { ok: false, mensaje: `Ya hay algo en marcha: ${marcha.titulo}. Espera a que termine o cancélalo.` }
+  if (elevando) return { ok: false, mensaje: 'Se está pidiendo el permiso de administrador: espera a que Windows responda.' }
   const ruta = join(raiz, 'Scripts', e.script!)
   if (!existsSync(ruta)) return { ok: false, mensaje: `No encuentro el script ${e.script}.` }
   // El lanzador (Ejecutar_Para_App) y Comun.ps1 se ejecutan antes de cualquier comprobación propia: se verifican aquí junto al script.
-  for (const r of [ruta, join(raiz, 'Scripts', 'Ejecutar_Para_App.ps1'), join(raiz, 'Scripts', 'Comun.ps1')]) {
+  const lanzador = join(raiz, 'Scripts', 'Ejecutar_Para_App.ps1')
+  for (const r of [ruta, lanzador, join(raiz, 'Scripts', 'Comun.ps1'), ...dependencias(ruta), ...dependencias(lanzador)]) {
     const motivo = motivoBloqueo(r)
     if (motivo) { historial(`BLOQUEADO ${basename(r)}: ${motivo}`); return { ok: false, mensaje: `Error crítico: no se ejecuta ${basename(r)} porque ${motivo}. Si lo has actualizado tú, ejecuta Regenerar_Integridad.ps1; si no, revisa el kit antes de usarlo.` } }
   }
@@ -338,12 +428,15 @@ function ejecutarScript(e: Elemento, extraEnv: Record<string, string> = {}, clas
         return
       }
       m.lineas.push(l); m.cola.push(l)
+      if (m.lineas.length > 100000) m.lineas.splice(0, 20000)   // una ejecución de horas con DISM/SFC no debe crecer sin tope; el registro conserva lo último
     }
   }
   // stdout y stderr llegan por separado: cada flujo tiene su búfer para no mezclar trozos de una línea partida
   const alimentar = (flujo: 0 | 1) => (trozo: string) => {
+    if (marcha !== m) return   // un hijo que heredó las tuberías puede seguir escribiendo tras cerrarse la ejecución: no se cuela en la siguiente
     const partes = (m.restos[flujo] + trozo).split(/\r?\n/)
     m.restos[flujo] = partes.pop() ?? ''
+    if (m.restos[flujo].length > 1_000_000) m.restos[flujo] = m.restos[flujo].slice(-100_000)   // un hijo que escribe sin saltos de línea no debe inflar el búfer
     for (const l of partes) procesar(l)
   }
   ;([proc.stdout!, proc.stderr!] as const).forEach((s, i) => { s.setEncoding('utf8'); s.on('data', alimentar(i as 0 | 1)) })
@@ -368,20 +461,25 @@ function ejecutarScript(e: Elemento, extraEnv: Record<string, string> = {}, clas
     m.temporizadores.forEach((t) => { clearInterval(t); clearTimeout(t) })
     for (const r of m.restos) if (r) procesar(r)
     volcar()
+    proc.stdout?.destroy(); proc.stderr?.destroy()
     const seg = Math.round((Date.now() - m.t0) / 1000)
     const cancel = m.cancelado || codigo === 2   // contrato de los scripts: 0 bien, 1 error, 2 cancelado (no es un fallo)
-    const motivo = cancel ? 'Cancelado' : m.agotado ? `Tiempo máximo agotado (${Math.round(limite / 60000)} min)` : codigo === 0 ? 'Terminó correctamente' : `Terminó con código ${codigo}`
+    const motivo = cancel ? 'Cancelado' : m.agotado ? `Tiempo máximo agotado (${Math.round(limite / 60000)} min)` : codigo === 0 ? 'Terminó' : `Terminó con código ${codigo}`
     const nombre = `${stamp()}_${basename(e.script!, '.ps1').replace(/[^\w-]/g, '_')}.log`
     const local = join(os.tmpdir(), 'Nitrit0_Cache', 'Logs', nombre)
     let registro: string | null = null
     try {
+      // Si el script imprime claves (Wi-Fi, BitLocker) no se escribe registro: ni en el pendrive ni en el %TEMP% del equipo del cliente
+      const sensible = /Red_WiFi_y_Claves|Auditoria_Licencias_BitLocker/.test(e.script!)
+      if (sensible) { /* sin registro: la salida solo queda en pantalla */ }
+      else {
       mkdirSync(dirname(local), { recursive: true })
       writeFileSync(local, '﻿' + m.lineas.join('\r\n'), 'utf8'); registro = local
-      // El registro de la ejecución solo se copia al pendrive en el pack personal, y nunca si el script imprime claves (Wi-Fi, BitLocker); en el público se queda en %TEMP%
-      const sensible = /Red_WiFi_y_Claves|Auditoria_Licencias_BitLocker/.test(e.script!)
-      if (esPublico() || sensible) { /* queda solo en %TEMP%\Nitrit0_Cache\Logs */ }
+      // El registro de la ejecución solo se copia al pendrive en el pack personal; en el público se queda en %TEMP%
+      if (esPublico()) { /* queda solo en %TEMP%\Nitrit0_Cache\Logs */ }
       else if (existsSync(join(datos, 'kit.id'))) { const d = join(datos, 'Logs', 'Ejecuciones'); mkdirSync(d, { recursive: true }); copyFileSync(local, join(d, nombre)); registro = join(d, nombre); try { unlinkSync(local) } catch { /* se queda */ } }   // la salida puede llevar claves o datos del cliente: no se deja copia en el equipo ajeno
       else copiarCuandoVuelva(local, nombre)
+      }
     } catch { /* sin registro */ }
     historial(`Script ${e.script}: ${motivo} en ${seg} s`)
     registroKit(`Script ${e.script}: ${motivo} en ${seg} s`, (codigo === 0 || cancel) && !m.agotado ? 'INFO' : 'AVISO')
@@ -420,7 +518,7 @@ let colaAjustes: Promise<unknown> = Promise.resolve()
 let pendientesAjustes = 0
 function ajustesPs(args: string[]): Promise<unknown> {
   const script = join(raiz, 'Scripts', 'Ajustes_Para_App.ps1')
-  for (const r of [script, join(raiz, 'Scripts', 'Comun.ps1')]) { const m = motivoBloqueo(r); if (m) return Promise.reject(new Error(`${basename(r)} bloqueado: ${m}`)) }
+  for (const r of [script, join(raiz, 'Scripts', 'Comun.ps1'), ...dependencias(script)]) { const m = motivoBloqueo(r); if (m) return Promise.reject(new Error(`${basename(r)} bloqueado: ${m}`)) }
   const entorno = entornoLimpio()
   return new Promise((ok, fallo) =>
     execFile(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args],
@@ -439,8 +537,7 @@ const discos = () => leerJsonPs('Discos_Para_App.ps1')
 /** Script de solo lectura que imprime un JSON: se comprueba su huella antes de lanzarlo. */
 function leerJsonPs(nombre: string): Promise<unknown> {
   const script = join(raiz, 'Scripts', nombre)
-  const motivo = motivoBloqueo(script)
-  if (motivo) return Promise.reject(new Error(`${nombre} bloqueado: ${motivo}`))
+  for (const r of [script, ...dependencias(script)]) { const motivo = motivoBloqueo(r); if (motivo) return Promise.reject(new Error(`${basename(r)} bloqueado: ${motivo}`)) }
   return new Promise((ok, fallo) =>
     execFile(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script],
       { windowsHide: true, maxBuffer: 4 << 20, timeout: 60000, env: entornoLimpio() },
@@ -452,8 +549,40 @@ function leerJsonPs(nombre: string): Promise<unknown> {
 }
 const esAdmin = () => new Promise<boolean>((ok) => execFile(FLTMC, [], { windowsHide: true }, (err) => ok(!err)))
 
+// Gráfica NVIDIA: nvidia-smi del sistema (ruta absoluta). Sin NVIDIA no hay dato y el panel lo dice; no se adivina.
+const NVIDIA_SMI = join(sys32, 'nvidia-smi.exe')
+const hayNvidia = existsSync(NVIDIA_SMI)
+type Gpu = { uso: number; temp: number | null; watios: number | null; ventilador: number | null; relojNucleo: number | null; relojMemoria: number | null; vramUsadaMb: number | null; vramTotalMb: number | null }
+let gpuEnCurso: Promise<Gpu | null> | null = null
+function leerGpu() {
+  if (!hayNvidia) return Promise.resolve(null)
+  gpuEnCurso ??= new Promise<Gpu | null>((ok) =>
+    execFile(NVIDIA_SMI, ['--query-gpu=utilization.gpu,temperature.gpu,power.draw,fan.speed,clocks.gr,clocks.mem,memory.used,memory.total', '--format=csv,noheader,nounits'], { windowsHide: true, timeout: 2500, env: entornoLimpio() }, (err, salida) => {
+      gpuEnCurso = null
+      if (err) return ok(null)
+      const [u, t, w, f, rn, rm, mu, mt] = String(salida).split(/\r?\n/)[0].split(',').map((x) => parseFloat(x))   // «[N/A]» da NaN y queda en null
+      const n = (x: number) => (Number.isFinite(x) ? Math.round(x) : null)
+      ok(Number.isFinite(u) ? { uso: Math.round(u), temp: n(t), watios: n(w), ventilador: n(f), relojNucleo: n(rn), relojMemoria: n(rm), vramUsadaMb: n(mu), vramTotalMb: n(mt) } : null)
+    }))
+  return gpuEnCurso
+}
+
+// Temperatura de la CPU: LibreHardwareMonitor tarda un par de segundos en arrancar, así que se lee en segundo plano cada 60 s (cada lectura carga y descarga el controlador de sensores: más seguido lo notarían los antivirus) y el panel usa la última lectura.
+// Si dos lecturas seguidas no dan nada (sin administrador, sin PawnIO, sin la carpeta de sensores) se deja de intentar en esta sesión y se guarda el motivo.
+type TempCpu = { cpu: number | null; cpuW: number | null; motivo: string }
+let tempCpu: TempCpu | null = null, tempCpuHora = 0, tempCpuEnCurso = false, tempCpuFallos = 0
+function refrescarTempCpu() {
+  if (tempCpuEnCurso || tempCpuFallos >= 2 || Date.now() - tempCpuHora < 60000) return
+  tempCpuEnCurso = true
+  leerJsonPs('Sensores_Para_App.ps1')
+    .then((d) => { tempCpu = d as TempCpu; tempCpuFallos = tempCpu.cpu === null ? tempCpuFallos + 1 : 0 })
+    .catch((e) => { tempCpuFallos++; tempCpu = { cpu: null, cpuW: null, motivo: e instanceof Error ? e.message : 'No se pudo leer.' } })
+    .finally(() => { tempCpuEnCurso = false; tempCpuHora = Date.now() })
+}
 let previa = os.cpus()
-function vivo() {
+async function vivo() {
+  const gpu = await leerGpu()
+  refrescarTempCpu()
   const ahora = os.cpus()
   let inactivo = 0, total = 0
   ahora.forEach((c, i) => {
@@ -462,7 +591,7 @@ function vivo() {
     total += (t.user - p.user) + (t.nice - p.nice) + (t.sys - p.sys) + (t.irq - p.irq) + (t.idle - p.idle)
   })
   previa = ahora
-  return { cpu: total ? Math.round(100 * (1 - inactivo / total)) : 0, ramUsadaGb: +((os.totalmem() - os.freemem()) / 2 ** 30).toFixed(1), ramGb: +(os.totalmem() / 2 ** 30).toFixed(1) }
+  return { cpu: total ? Math.round(100 * (1 - inactivo / total)) : 0, ramUsadaGb: +((os.totalmem() - os.freemem()) / 2 ** 30).toFixed(1), ramGb: +(os.totalmem() / 2 ** 30).toFixed(1), gpu, cpuTemp: tempCpu?.cpu ?? null, cpuMotivo: tempCpu && tempCpu.cpu === null ? tempCpu.motivo : '' }
 }
 
 // ---------- Ajustes y favoritos (los mismos ficheros que el lanzador) ----------
@@ -504,6 +633,7 @@ async function lanzarId(id: string): Promise<{ ok: boolean; mensaje: string }> {
     colaEjecucion.push({ id, titulo: e.titulo }); avisarCola(); historial(`En cola: ${e.titulo} (puesto ${colaEjecucion.length})`)
     return { ok: true, mensaje: `${e.titulo} en cola (puesto ${colaEjecucion.length}): empieza cuando termine ${marcha.titulo}.` }
   }
+  if (id === 'Clonar_Disco.ps1') return abrirClonador()
   try {
     if (e.tipo === 'informe') return ejecutarScript({ ...e, script: 'Informe_Rapido.ps1', timeout: 300 })   // el informe rápido vive fuera de Mantenimiento
     return e.tipo === 'script' ? ejecutarScript(e) : e.tipo === 'exe' ? lanzarApp(e) : await lanzarOtro(e)
@@ -550,9 +680,10 @@ async function ponerArranque(activar: boolean, exeDestino?: string, rutaAj: stri
   const lanzar = (args: string[]) => new Promise<{ ok: boolean; texto: string }>((ok) => execFile(SCHTASKS, args, { windowsHide: true, timeout: 20000 }, (err, so, se) => ok({ ok: !err, texto: String(se || so || err?.message || '').trim() })))
   if (!activar) {
     const r = await lanzar(['/delete', '/tn', NOMBRE_TAREA, '/f'])
+    if (!r.ok && await tareaExiste()) return { ok: false, mensaje: `No se pudo quitar la tarea: ${r.texto}` }   // el ajuste solo cambia si la tarea ya no está
     escribirJson(rutaAj, { ...leerJson<Record<string, unknown>>(rutaAj, {}), Bandeja: false })
     registroKit('Arranque con Windows desactivado')
-    return r.ok || !(await tareaExiste()) ? { ok: true, mensaje: 'La app ya no arranca con Windows.' } : { ok: false, mensaje: `No se pudo quitar la tarea: ${r.texto}` }
+    return { ok: true, mensaje: 'La app ya no arranca con Windows.' }
   }
   if (dev) return { ok: false, mensaje: 'El arranque con Windows solo se activa con la app empaquetada.' }
   // La tarea corre con privilegios altos: solo se apunta a la copia de Archivos de programa (donde un usuario normal no puede cambiar el .exe ni los scripts)
@@ -569,7 +700,10 @@ async function ponerArranque(activar: boolean, exeDestino?: string, rutaAj: stri
 
 // ---------- Instalación pequeña en el equipo (Archivos de programa) ----------
 // Copia la app, los scripts y el catálogo (sin Apps\, que es lo que pesa); Archivos de programa solo lo escribe un administrador, y la tarea de arranque corre con privilegios altos.
-const dirInstalacion = join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Nitrit0 Kit')
+// La variable de entorno no es de fiar (la tarea de arranque corre con privilegios altos): solo se acepta si es «Program Files» en la raíz del disco del sistema
+const raizSistema = `${(process.env.SystemDrive ?? 'C:').slice(0, 2)}\\`
+const programFiles = [process.env.ProgramFiles, process.env.ProgramW6432].find((p) => p && /^program files$/i.test(basename(p)) && resolve(dirname(p)).toLowerCase() === resolve(raizSistema).toLowerCase()) ?? join(raizSistema, 'Program Files')
+const dirInstalacion = join(programFiles, 'Nitrit0 Kit')
 const accesoInicio = join(process.env.ProgramData ?? 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Nitrit0 Kit.lnk')
 const estaInstalada = () => resolve(raiz).toLowerCase() === resolve(dirInstalacion).toLowerCase()
 const hayInstalacion = () => existsSync(join(dirInstalacion, 'Nitrit0.exe'))
@@ -605,8 +739,10 @@ async function instalarEnEquipo(): Promise<{ ok: boolean; mensaje: string }> {
 }
 async function quitarInstalacion(): Promise<{ ok: boolean; mensaje: string }> {
   if (!hayInstalacion() || basename(dirInstalacion) !== 'Nitrit0 Kit') return { ok: false, mensaje: 'No hay una instalación que quitar.' }
-  await ponerArranque(false, undefined, join(dirInstalacion, 'Datos', 'Ajustes.json'))
-  try { unlinkSync(accesoInicio) } catch { /* sin acceso */ }
+  if (marcha) return { ok: false, mensaje: `Ya hay algo en marcha: ${marcha.titulo}. Espera a que termine.` }   // el script en marcha puede estar leyendo de la carpeta que se borraría
+  const tarea = await ponerArranque(false, undefined, join(dirInstalacion, 'Datos', 'Ajustes.json'))
+  if (!tarea.ok) return { ok: false, mensaje: `No se quita la instalación: ${tarea.mensaje}` }   // sin quitar la tarea, borrar la carpeta la dejaría apuntando a un .exe que no existe
+  try { unlinkSync(accesoInicio) } catch (err) { if ((err as NodeJS.ErrnoException).code !== 'ENOENT') return { ok: false, mensaje: `No se pudo quitar el acceso del menú Inicio: ${(err as Error).message}` } }
   registroKit('Instalación quitada')
   if (estaInstalada()) {   // el .exe en marcha no se puede borrar: se espera a que la app se cierre
     salirDeVerdad = true
@@ -621,7 +757,7 @@ async function quitarInstalacion(): Promise<{ ok: boolean; mensaje: string }> {
 // ---------- Liberar memoria (a mano, desde la bandeja o sola cuando la RAM se llena) ----------
 function memoriaPs(): Promise<{ ok: boolean; mensaje?: string; antesMb?: number; despuesMb?: number; procesos?: number }> {
   const script = join(raiz, 'Scripts', 'Memoria_Para_App.ps1')
-  for (const r of [script, join(raiz, 'Scripts', 'Comun.ps1')]) { const m = motivoBloqueo(r); if (m) return Promise.resolve({ ok: false, mensaje: `${basename(r)} bloqueado: ${m}` }) }
+  for (const r of [script, join(raiz, 'Scripts', 'Comun.ps1'), ...dependencias(script)]) { const m = motivoBloqueo(r); if (m) return Promise.resolve({ ok: false, mensaje: `${basename(r)} bloqueado: ${m}` }) }
   return new Promise((ok) => execFile(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script],
     { windowsHide: true, maxBuffer: 1 << 20, timeout: 60000, cwd: os.tmpdir(), env: { ...entornoLimpio(), NIT_RAIZ: raiz } },
     (err, salida) => {
@@ -699,7 +835,7 @@ function crearVentana() {
   // El tema guardado se aplica ya a los botones de la ventana, no solo al pulsar el botón de tema
   const tema0 = temaEfectivo(modoTema())
   ventana = new BrowserWindow({
-    width: 1280, height: dev ? Number(process.env.NITRIT0_ALTO ?? 800) : 800, minWidth: 960, minHeight: 600, backgroundColor: tema0 === 'claro' ? '#FAFAFA' : '#141415', title: 'Nitrit0 Kit', show: !enBandeja, icon: app.isPackaged ? join(process.resourcesPath, 'icono.png') : join(__dirname, '../../build/icono-256.png'),
+    width: 1280, height: dev ? Number(process.env.NITRIT0_ALTO ?? 800) : 800, minWidth: 960, minHeight: 600, backgroundColor: tema0 === 'claro' ? '#FAFAFA' : '#141415', title: 'Nitrit0 Kit', show: !enBandeja, icon: app.isPackaged ? join(process.resourcesPath, 'icono.ico') : join(__dirname, '../../build/icono.ico'),   // .ico: lleva todos los tamaños y la barra de tareas coge el suyo (con un .png Windows reescala un solo tamaño)
     titleBarStyle: 'hidden', titleBarOverlay: { ...colores[tema0], height: 40 },
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: true }
   })
@@ -763,7 +899,7 @@ function crearVentana() {
 // Una sola ventana: dos instancias podrían lanzar dos scripts a la vez sobre el mismo equipo.
 const unica = app.requestSingleInstanceLock()
 if (!unica) app.quit()
-else app.on('second-instance', mostrarVentana)
+else app.on('second-instance', (_e, argv) => { mostrarVentana() })
 
 /** Endurecimiento (guía de seguridad de Electron): solo se atiende al marco principal de la ventana propia (ni subventanas ni iframes) y se deniega todo permiso del navegador salvo copiar al portapapeles. */
 const deMiVentana = (f: Electron.WebFrameMain | null) => f !== null && !!ventana && !ventana.isDestroyed() && f === ventana.webContents.mainFrame
@@ -814,9 +950,13 @@ app.whenReady().then(() => {
   handle('memoria', () => liberarMemoria('manual'))
   handle('memoriaAuto', (_e, on: unknown) => { escribirJson(rutaAjustes, { ...leerJson<Record<string, unknown>>(rutaAjustes, {}), MemoriaAuto: on === true }); montarBandeja() })
   handle('elevar', () => reabrirComoAdmin())
+  handle('abrirAntivirus', () => abrirAntivirus())
+  handle('versionWindows', () => comprobarVersionWindows())
+  handle('historialCambios', () => listarCambios())
+  handle('deshacerCambio', (_e, id: unknown) => deshacerCambio(id))
   handle('instalar', () => instalarEnEquipo())
   handle('quitarInstalacion', () => quitarInstalacion())
-  handle('estado', async () => { const c = await arranqueYAdmin(); return { instalada: estaInstalada(), hayInstalacion: hayInstalacion(), puedeInstalar: !dev, memoriaAuto: memoriaAutoActiva(), perfil: perfilActual(), preguntado: leerJson<{ PerfilPreguntado?: boolean }>(rutaAjustes, {}).PerfilPreguntado === true, arranque: c.arranque, admin: c.admin, ocultarPeligro: leerJson<{ OcultarPeligro?: boolean }>(rutaAjustes, {}).OcultarPeligro === true,tema: modoTema(), modo: leerJson<{ Modo?: string }>(rutaAjustes, {}).Modo === 'tecnico' ? 'tecnico' : 'sencillo', ultima: leerJson<{ Ultima?: unknown }>(rutaAjustes, {}).Ultima ?? null, favoritos: leerJson<string[]>(rutaFavs, FAVORITAS_INICIALES), kit: raiz, zoom: leerJson<{ Zoom?: number }>(rutaAjustes, {}).Zoom ?? 1 } })
+  handle('estado', async () => { const c = await arranqueYAdmin(); return { instalada: estaInstalada(), hayInstalacion: hayInstalacion(), puedeInstalar: !dev, memoriaAuto: memoriaAutoActiva(), perfil: perfilActual(), preguntado: leerJson<{ PerfilPreguntado?: boolean }>(rutaAjustes, {}).PerfilPreguntado === true, arranque: c.arranque, admin: c.admin, ocultarPeligro: esPublico(), antivirus: existsSync(exeAntivirus), tema: modoTema(), modo: leerJson<{ Modo?: string }>(rutaAjustes, {}).Modo === 'tecnico' ? 'tecnico' : 'sencillo', ultima: leerJson<{ Ultima?: unknown }>(rutaAjustes, {}).Ultima ?? null, favoritos: leerJson<string[]>(rutaFavs, FAVORITAS_INICIALES), kit: raiz, zoom: leerJson<{ Zoom?: number }>(rutaAjustes, {}).Zoom ?? 1 } })
   handle('ejecucionActual', () => (marcha ? { id: marcha.id, titulo: marcha.titulo, limite: marcha.limite, clase: marcha.clase, t0: marcha.t0, lineas: marcha.lineas.slice(-4000) } : null))
   handle('tema', (_e, t: unknown) => {
     const modo: ModoTema = t === 'claro' || t === 'sistema' ? t : 'oscuro'
@@ -830,6 +970,18 @@ app.whenReady().then(() => {
     ventana.webContents.setZoomFactor(v)
     escribirJson(rutaAjustes, { ...leerJson<Record<string, unknown>>(rutaAjustes, {}), Zoom: v })
   })
+  // Bichobit: copia de la criatura de cada equipo en Datos\Pasaporte. El almacenamiento local de la app vive en %TEMP% y «Limpiar temporales» se lo lleva.
+  // Solo en el pack personal: en el público nada se guarda en el pendrive.
+  const rutaCriatura = (equipo: unknown) => {
+    if (typeof equipo !== 'string' || !equipo || esPublico() || !existsSync(join(datos, 'kit.id'))) return null
+    return join(datos, 'Pasaporte', equipo.replace(/[^\w.-]/g, '_').slice(0, 60) + '.json')
+  }
+  handle('criaturaGuardar', (_e, equipo: unknown, texto: unknown) => {
+    const r = rutaCriatura(equipo)
+    if (!r || typeof texto !== 'string' || texto.length > 20000) return
+    try { JSON.parse(texto); mkdirSync(dirname(r), { recursive: true }); writeFileSync(r, texto, 'utf8') } catch { /* sin pendrive o texto no válido: no pasa nada */ }
+  })
+  handle('criaturaLeer', (_e, equipo: unknown) => { const r = rutaCriatura(equipo); try { return r && existsSync(r) ? readFileSync(r, 'utf8') : null } catch { return null } })
   // Modo sencillo (una sola pantalla de ayuda) o técnico (todo el kit): se recuerda entre usos.
   handle('modo', (_e, m: string) => { escribirJson(rutaAjustes, { ...leerJson<Record<string, unknown>>(rutaAjustes, {}), Modo: m === 'tecnico' ? 'tecnico' : 'sencillo' }) })
   // Reinicio con 30 s de margen (Windows lo avisa en pantalla) y posibilidad de arrepentirse. Solo lo pide la interfaz tras confirmar.
@@ -839,6 +991,7 @@ app.whenReady().then(() => {
     escribirJson(rutaAjustes, { ...leerJson<Record<string, unknown>>(rutaAjustes, {}), Ultima: { titular: s(u.titular, 300), hora: u.hora, enfoque: s(u.enfoque, 20), actualizar: u.actualizar === true, antivirus: u.antivirus === true, cliente: s(u.cliente, 200) } })
   })
   handle('reiniciar', () => new Promise<{ ok: boolean; mensaje: string }>((ok) => {
+    if (marcha) return ok({ ok: false, mensaje: `Hay algo en marcha (${marcha.titulo}): reiniciar ahora lo cortaría. Espera a que termine o cancélalo.` })
     const h = spawn(join(sys32, 'shutdown.exe'), ['/r', '/t', '30', '/c', 'Nitrit0 Kit reinicia el equipo para terminar los arreglos.'], { windowsHide: true, stdio: 'ignore' })
     h.on('error', (e) => ok({ ok: false, mensaje: `No se pudo pedir el reinicio: ${e.message}` }))
     h.on('exit', (codigo) => {
@@ -856,6 +1009,7 @@ app.whenReady().then(() => {
   handle('pruebaSalir', () => { pruebasAbiertas = Math.max(0, pruebasAbiertas - 1) })
   // Cámara/micrófono: lo que Windows permite a las apps de escritorio (Configuración > Privacidad). La app no cambia ese ajuste: solo lo lee y abre la página de Windows donde la persona lo activa.
   handle('mediaEstado', (_e, tipo: unknown) => { try { return systemPreferences.getMediaAccessStatus(tipo === 'microphone' ? 'microphone' : 'camera') } catch { return 'unknown' } })
+  handle('donar', () => { if (esPublico()) void shell.openExternal('https://paypal.me/Nitritog') })   // dirección fija: la interfaz no puede pedir otra
   handle('ajustesPrivacidad', (_e, tipo: unknown) => { void shell.openExternal(tipo === 'microphone' ? 'ms-settings:privacy-microphone' : 'ms-settings:privacy-webcam') })
   handle('pruebaUrl', (_e, id: unknown) => {
     const e = typeof id === 'string' ? leerCatalogo().elementos.find((x) => x.id === id) : undefined
@@ -889,6 +1043,8 @@ app.whenReady().then(() => {
     const cliente = typeof opc?.cliente === 'string' ? opc.cliente.trim().slice(0, 200) : ''
     const flag = join(os.tmpdir(), 'Nitrit0_Cache', 'saltar.flag')
     try { unlinkSync(flag) } catch { /* no había */ }
+    // El script espera este fichero para saber qué pasos aplicar: uno viejo de otra revisión se daría por la respuesta de esta y cambiaría cosas sin preguntar
+    try { unlinkSync(join(os.tmpdir(), 'Nitrit0_Cache', 'confirmar.json')) } catch { /* no había */ }
     const el = { id: 'auto', titulo: 'Revisar y arreglar el equipo', script: 'Arreglo_Automatico_Para_App.ps1', timeout: 4 * 3600 } as Elemento
     return ejecutarScript(el, { NIT_DX_MODO: 'Rapido', NIT_AUTO: '1', NIT_AUTO_SALTAR: flag, NIT_AUTO_ACTUALIZAR: opc?.actualizar === true ? '1' : '0', NIT_AUTO_CONFIRMAR: join(os.tmpdir(), 'Nitrit0_Cache', 'confirmar.json'), NIT_AUTO_ENFOQUE: enfoque, NIT_AUTO_ANTIVIRUS: opc?.antivirus === true ? '1' : '0', NIT_DX_FICHA: JSON.stringify({ Cliente: cliente }) }, 'auto')
   })
@@ -921,6 +1077,21 @@ app.whenReady().then(() => {
   handle('cola', () => colaEjecucion.map((x) => ({ ...x })))
   handle('colaQuitar', (_e, id: unknown) => { if (typeof id !== 'string') return; const i = colaEjecucion.findIndex((x) => x.id === id); if (i >= 0) { colaEjecucion.splice(i, 1); avisarCola() } })
   handle('colaVaciar', () => { if (colaEjecucion.length) { colaEjecucion.length = 0; avisarCola() } })
+  // Informe a PDF (A4): se abre el HTML en una ventana oculta sin scripts y se imprime. El PDF queda junto al informe, en la misma carpeta permitida.
+  handle('informePdf', async (_e, ruta: string) => {
+    if (typeof ruta !== 'string' || !dentroDeDatos(ruta, '.html')) return { ok: false, mensaje: 'Informe no permitido.' }
+    const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false, contextIsolation: true } })
+    try {
+      w.webContents.on('will-navigate', (ev) => ev.preventDefault())
+      await w.loadFile(ruta)
+      const pdf = await w.webContents.printToPDF({ printBackground: true, pageSize: 'A4' })
+      const destino = ruta.replace(/\.html$/i, '.pdf')
+      writeFileSync(destino, pdf)
+      historial(`Guardó el informe en PDF: ${basename(destino)}`)
+      return abrirRuta(destino, 'el PDF')
+    } catch (err) { return { ok: false, mensaje: `No se pudo crear el PDF: ${err instanceof Error ? err.message : String(err)}` } }
+    finally { if (!w.isDestroyed()) w.destroy() }
+  })
   handle('abrirInforme', (_e, ruta: string) => (typeof ruta === 'string' && dentroDeDatos(ruta, '.html') ? abrirRuta(ruta, 'el informe') : { ok: false, mensaje: 'Informe no permitido.' }))
   handle('abrirRegistro', (_e, ruta: string) => {
     if (typeof ruta !== 'string') return { ok: false, mensaje: 'Registro no permitido.' }

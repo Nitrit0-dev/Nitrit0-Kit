@@ -11,7 +11,7 @@
 #              -Restaurar (deshace una limpieza desde la cuarentena) -VaciarCuarentena
 # =====================================================================
 [CmdletBinding()]
-param([string[]]$Nombre, [switch]$Auto, [switch]$Datos, [switch]$SoloAnalizar, [switch]$SinDesinstalar, [switch]$Forzar, [switch]$Restaurar, [switch]$VaciarCuarentena)
+param([string[]]$Nombre, [switch]$Auto, [switch]$Datos, [switch]$SoloAnalizar, [switch]$SinDesinstalar, [switch]$Forzar, [switch]$Restaurar, [switch]$VaciarCuarentena, [switch]$SinConfirmar)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -81,6 +81,8 @@ function Find-Restos($p) {
     $sinEditor = $limpio; if ($editor -and $limpio -like "$editor *") { $sinEditor = $limpio.Substring($editor.Length).Trim() }
     $nombres = @($limpio, ($limpio -replace '\s', ''), ($limpio -replace '[^\w]', ''), $sinEditor) | Where-Object { $_ -and $_.Length -ge 4 -and $Genericos -notcontains $_.ToLowerInvariant() } | Select-Object -Unique
     $loc = $p.Ubicacion
+    # «Dentro de la carpeta del programa»: la propia carpeta o algo que cuelga de ella con «\». Sin la barra, «...\App» casaría con «...\App2» y «...\AppServer»
+    $bajo = { param([string]$x) [bool]($loc -and $x -and ($x.TrimEnd('\') -ieq $loc -or $x.StartsWith($loc + '\', [StringComparison]::OrdinalIgnoreCase))) }
 
     # --- Carpetas
     $perfiles = @(Get-ChildItem (Split-Path $env:USERPROFILE -Parent) -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin 'Public', 'Default', 'Default User', 'All Users' })
@@ -94,7 +96,7 @@ function Find-Restos($p) {
             foreach ($c in $cands) { if ((Test-Path -LiteralPath $c) -and -not (Test-RutaProtegida $c)) { Add-Resto 'Carpeta' $c 'Alta' $r.D $(if ($r.D) { 'Datos y configuración' } else { 'Archivos del programa' }) '' } }
         }
         if ($limpio.Length -ge 6) {
-            foreach ($d in @(Get-ChildItem -LiteralPath $r.R -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$limpio*" })) { if (-not (Test-RutaProtegida $d.FullName)) { Add-Resto 'Carpeta' $d.FullName 'Media' $r.D 'Nombre parecido (revisar)' '' } }
+            foreach ($d in @(Get-ChildItem -LiteralPath $r.R -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith($limpio, [StringComparison]::OrdinalIgnoreCase) })) { if (-not (Test-RutaProtegida $d.FullName)) { Add-Resto 'Carpeta' $d.FullName 'Media' $r.D 'Nombre parecido (revisar)' '' } }
         }
     }
     if ($p.Familia) { foreach ($pf in $perfiles) { $d = Join-Path $pf.FullName "AppData\Local\Packages\$($p.Familia)"; if (Test-Path -LiteralPath $d) { Add-Resto 'Carpeta' $d 'Alta' $true 'Datos de la app de la Tienda' '' } } }
@@ -107,7 +109,7 @@ function Find-Restos($p) {
             if (-not (Test-Path -LiteralPath $d)) { continue }
             foreach ($l in @(Get-ChildItem -LiteralPath $d -Filter *.lnk -Recurse -ErrorAction SilentlyContinue)) {
                 $t = ''; try { $t = $ws.CreateShortcut($l.FullName).TargetPath } catch { }
-                $porRuta = ($loc -and $t -and $t.StartsWith($loc, [StringComparison]::OrdinalIgnoreCase)); $porNombre = ($nombres -contains $l.BaseName)
+                $porRuta = (& $bajo $t); $porNombre = ($nombres -contains $l.BaseName)
                 if ($porRuta -or $porNombre) { Add-Resto 'Archivo' $l.FullName 'Alta' $false 'Acceso directo' '' }
             }
             foreach ($n in $nombres) { foreach ($c in @((Join-Path $d $n), $(if ($editor) { Join-Path (Join-Path $d $editor) $n }))) { if ($c -and (Test-Path -LiteralPath $c -PathType Container) -and -not (Test-RutaProtegida $c)) { Add-Resto 'Carpeta' $c 'Alta' $false 'Carpeta del menú Inicio' '' } } }
@@ -136,27 +138,27 @@ function Find-Restos($p) {
     # App Paths y Run
     if ($loc) {
         foreach ($ap in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths', 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths') {
-            foreach ($k in @(Get-ChildItem -LiteralPath $ap -ErrorAction SilentlyContinue)) { $v = [string](Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).'(default)'; if ($v -and $v.Trim('"').StartsWith($loc, [StringComparison]::OrdinalIgnoreCase)) { Add-Resto 'Registro' $k.PSPath 'Alta' $false 'Ruta de aplicación' '' } }
+            foreach ($k in @(Get-ChildItem -LiteralPath $ap -ErrorAction SilentlyContinue)) { $v = [string](Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).'(default)'; if ($v -and (& $bajo $v.Trim('"'))) { Add-Resto 'Registro' $k.PSPath 'Alta' $false 'Ruta de aplicación' '' } }
         }
     }
     foreach ($run in 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run') {
         if (-not (Test-Path -LiteralPath $run)) { continue }
         $it = Get-ItemProperty -LiteralPath $run -ErrorAction SilentlyContinue
         foreach ($pn in $it.PSObject.Properties) { if ($pn.Name -like 'PS*') { continue }; $v = [string]$pn.Value
-            if (($loc -and $v -like "*$loc*") -or ($nombres | Where-Object { $v -match [regex]::Escape("\$_\") })) { Add-Resto 'ValorRegistro' $run 'Alta' $false "Se inicia con Windows: $($pn.Name)" $pn.Name } }
+            if (($loc -and $v -match ('(?i)' + [regex]::Escape($loc) + '(\\|"|\s|$)')) -or ($nombres | Where-Object { $v -match [regex]::Escape("\$_\") })) { Add-Resto 'ValorRegistro' $run 'Alta' $false "Se inicia con Windows: $($pn.Name)" $pn.Name } }
     }
 
     # --- Servicios, tareas y firewall (solo con la ruta de instalación conocida o nombre exacto)
-    try { foreach ($s in @(Get-CimInstance Win32_Service -ErrorAction Stop)) { if ($loc -and $s.PathName -and $s.PathName.Trim('"') -like "$loc*") { Add-Resto 'Servicio' $s.Name 'Alta' $false "Servicio: $($s.DisplayName)" '' } } } catch { }
+    try { foreach ($s in @(Get-CimInstance Win32_Service -ErrorAction Stop)) { if ($s.PathName -and (& $bajo $s.PathName.Trim('"'))) { Add-Resto 'Servicio' $s.Name 'Alta' $false "Servicio: $($s.DisplayName)" '' } } } catch { }
     try {
         foreach ($t in @(Get-ScheduledTask -ErrorAction Stop)) {
             $ex = ($t.Actions | ForEach-Object { $_.Execute }) -join ' '
-            $porRuta = ($loc -and $ex -and $ex.Trim('"') -like "$loc*"); $porNombre = ($nombres -contains $t.TaskName)
+            $porRuta = (& $bajo $ex.Trim('"')); $porNombre = ($nombres -contains $t.TaskName)
             if ($porRuta -or $porNombre) { Add-Resto 'Tarea' ($t.TaskPath + $t.TaskName) 'Alta' $false "Tarea programada: $($t.TaskName)" '' }
         }
     } catch { }
     if ($loc) {
-        try { foreach ($f in @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -and $_.Program -like "$loc*" })) { $reg = $f | Get-NetFirewallRule -ErrorAction SilentlyContinue; if ($reg) { Add-Resto 'Firewall' $reg.Name 'Alta' $false "Regla de firewall: $($reg.DisplayName)" '' } } } catch { }
+        try { foreach ($f in @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -and (& $bajo ([string]$_.Program).Trim('"')) })) { $reg = $f | Get-NetFirewallRule -ErrorAction SilentlyContinue; if ($reg) { Add-Resto 'Firewall' $reg.Name 'Alta' $false "Regla de firewall: $($reg.DisplayName)" '' } } } catch { }
     }
     $script:Restos.ToArray()
 }
@@ -217,15 +219,24 @@ function Get-DirCuarentena([string]$sesion, [string]$ruta) {
     $base = if ($unidad -ieq $env:SystemDrive) { Join-Path $env:ProgramData $RaizCuarentena } else { Join-Path "$unidad\" $RaizCuarentena }
     Join-Path $base $sesion
 }
+# La cuarentena se restaura con permisos de administrador: solo se fía de carpetas cuyo dueño es Administradores o SYSTEM
+# y que ya no heredan permisos de la raíz del disco (donde un usuario normal puede crear carpetas).
+function Test-DirConfiable([string]$ruta) {
+    try { $dueno = (Get-Acl -LiteralPath $ruta -ErrorAction Stop).GetOwner([Security.Principal.SecurityIdentifier]).Value; $dueno -in 'S-1-5-32-544', 'S-1-5-18' } catch { $false }
+}
+function Protect-DirCuarentena([string]$ruta) {
+    & icacls.exe $ruta /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Log "Desinstalar_Total: no se pudieron restringir los permisos de $ruta (icacls $LASTEXITCODE)" }
+}
 function Remove-Restos($lista, [string]$sesion) {
-    $qSis = Get-DirCuarentena $sesion $env:SystemDrive; New-Item -ItemType Directory -Force "$qSis\Registro" | Out-Null
+    $qSis = Get-DirCuarentena $sesion $env:SystemDrive; New-Item -ItemType Directory -Force "$qSis\Registro" | Out-Null; Protect-DirCuarentena $qSis
     $indice = New-Object Collections.Generic.List[string]; $ok = 0; $fallos = 0; $n = 0
     foreach ($x in $lista) {
         $n++
         try {
             switch ($x.Tipo) {
                 { $_ -in 'Carpeta', 'Archivo' } {
-                    $q = Get-DirCuarentena $sesion $x.Ruta; New-Item -ItemType Directory -Force "$q\Carpetas" | Out-Null
+                    $q = Get-DirCuarentena $sesion $x.Ruta; New-Item -ItemType Directory -Force "$q\Carpetas" | Out-Null; Protect-DirCuarentena $q
                     $dest = Join-Path "$q\Carpetas" ("{0:D3}_{1}" -f $n, (Split-Path $x.Ruta -Leaf))
                     Move-Item -LiteralPath $x.Ruta -Destination $dest -Force -ErrorAction Stop
                     $indice.Add("$($x.Ruta)|$dest")
@@ -234,20 +245,24 @@ function Remove-Restos($lista, [string]$sesion) {
                 }
                 { $_ -in 'Registro', 'ValorRegistro' } {
                     $rp = Convert-RegPath $x.Ruta; & reg.exe export $rp ("$qSis\Registro\{0:D3}.reg" -f $n) /y 2>&1 | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "no se pudo guardar la copia de la clave (reg export código $LASTEXITCODE): no se borra" }   # sin copia no hay vuelta atrás
                     if ($x.Tipo -eq 'Registro') { Remove-Item -LiteralPath $x.Ruta -Recurse -Force -ErrorAction Stop } else { Remove-ItemProperty -LiteralPath $x.Ruta -Name $x.Valor -ErrorAction Stop }
                 }
-                'Servicio' { & reg.exe export "HKLM\SYSTEM\CurrentControlSet\Services\$($x.Ruta)" ("$qSis\Registro\{0:D3}_servicio.reg" -f $n) /y 2>&1 | Out-Null; Stop-Service -Name $x.Ruta -Force -ErrorAction SilentlyContinue; & sc.exe delete $x.Ruta | Out-Null; if ($LASTEXITCODE -ne 0) { throw "sc delete código $LASTEXITCODE" } }
-                'Tarea' { $tn = Split-Path $x.Ruta -Leaf; $path = ($x.Ruta.Substring(0, $x.Ruta.Length - $tn.Length)); try { Export-ScheduledTask -TaskName $tn -TaskPath $path | Out-File ("$qSis\Registro\{0:D3}_tarea.xml" -f $n) -Encoding UTF8 } catch { }; Unregister-ScheduledTask -TaskName $tn -TaskPath $path -Confirm:$false -ErrorAction Stop }
+                'Servicio' { & reg.exe export "HKLM\SYSTEM\CurrentControlSet\Services\$($x.Ruta)" ("$qSis\Registro\{0:D3}_servicio.reg" -f $n) /y 2>&1 | Out-Null; if ($LASTEXITCODE -ne 0) { throw "no se pudo guardar la copia del servicio (reg export código $LASTEXITCODE): no se borra" }; Stop-Service -Name $x.Ruta -Force -ErrorAction SilentlyContinue; & sc.exe delete $x.Ruta | Out-Null; if ($LASTEXITCODE -ne 0) { throw "sc delete código $LASTEXITCODE" } }
+                'Tarea' { $tn = Split-Path $x.Ruta -Leaf; $path = ($x.Ruta.Substring(0, $x.Ruta.Length - $tn.Length)); $xmlT = "$qSis\Registro\{0:D3}_tarea.xml" -f $n; try { Export-ScheduledTask -TaskName $tn -TaskPath $path -ErrorAction Stop | Out-File $xmlT -Encoding UTF8 } catch { }; if (-not (Test-Path -LiteralPath $xmlT) -or -not (Get-Item -LiteralPath $xmlT).Length) { throw 'no se pudo guardar la copia de la tarea: no se borra' }; Unregister-ScheduledTask -TaskName $tn -TaskPath $path -Confirm:$false -ErrorAction Stop }
                 'Firewall' { Remove-NetFirewallRule -Name $x.Ruta -ErrorAction Stop }
             }
             $ok++; Write-Host "    $($E.OK) [$n/$(@($lista).Count)] $($x.Tipo): $($x.Ruta)"
         } catch { $fallos++; Write-Host "    $($E.Error) [$n/$(@($lista).Count)] $($x.Tipo): $($x.Ruta) -> $($_.Exception.Message)" }
     }
     if ($indice.Count) { Set-Content -LiteralPath "$qSis\indice.txt" -Value $indice -Encoding UTF8 }
+    # Huellas de lo que se restaurará con privilegios (índice, .reg, tareas): si algo cambia después, no se restaura
+    $huellas = @(Get-ChildItem -LiteralPath $qSis -Recurse -File -Include 'indice.txt', '*.reg', '*_tarea.xml' -ErrorAction SilentlyContinue | ForEach-Object { '{0}|{1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash, $_.FullName.Substring($qSis.Length + 1) })
+    if ($huellas.Count) { Set-Content -LiteralPath "$qSis\manifiesto.txt" -Value $huellas -Encoding UTF8 }
     Write-Log "Desinstalar_Total: sesión $sesion - $ok eliminados, $fallos con error"
     [pscustomobject]@{ Ok = $ok; Fallos = $fallos; Carpeta = $qSis }
 }
-function Get-Sesiones { $r = @(); foreach ($u in [IO.DriveInfo]::GetDrives()) { try { if ($u.IsReady) { $b = if ($u.Name -ieq "$env:SystemDrive\") { Join-Path $env:ProgramData $RaizCuarentena } else { Join-Path $u.Name $RaizCuarentena }; if (Test-Path -LiteralPath $b) { $r += @(Get-ChildItem -LiteralPath $b -Directory -ErrorAction SilentlyContinue) } } } catch { } }; @($r | Sort-Object Name -Descending) }
+function Get-Sesiones { $r = @(); foreach ($u in [IO.DriveInfo]::GetDrives()) { try { if ($u.IsReady) { $b = if ($u.Name -ieq "$env:SystemDrive\") { Join-Path $env:ProgramData $RaizCuarentena } else { Join-Path $u.Name $RaizCuarentena }; if (Test-Path -LiteralPath $b) { $r += @(Get-ChildItem -LiteralPath $b -Directory -ErrorAction SilentlyContinue | Where-Object { Test-DirConfiable $_.FullName }) } } } catch { } }; @($r | Sort-Object Name -Descending) }
 
 # ---------------------------------------------------------------- Ventanas
 function Show-Selector($programas) {
@@ -354,10 +369,24 @@ if ($Restaurar) {
     Write-Output "  $($E.Refresh) Restaurando $($sel.Name)…"
     $dirs = @($sel.FullName); foreach ($u in [IO.DriveInfo]::GetDrives()) { try { if ($u.IsReady -and $u.Name -ine "$env:SystemDrive\") { $c = Join-Path (Join-Path $u.Name $RaizCuarentena) $sel.Name; if (Test-Path -LiteralPath $c) { $dirs += $c } } } catch { } }
     foreach ($d in ($dirs | Select-Object -Unique)) {
+        if (-not (Test-DirConfiable $d)) { Write-Output "    $($E.Aviso) Se omite ${d}: no es de Administradores/SYSTEM (podría haberla preparado otro usuario)."; Write-Log "Restaurar: omitida $d por dueño no confiable"; continue }
+        $man = Join-Path $d 'manifiesto.txt'
+        if (Test-Path -LiteralPath $man) {
+            $alterado = $false
+            foreach ($m in Get-Content -LiteralPath $man -Encoding UTF8) { $h, $rel = $m -split '\|', 2; $f = Join-Path $d $rel; if (-not (Test-Path -LiteralPath $f) -or (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash -ne $h) { $alterado = $true; break } }
+            if ($alterado) { Write-Output "    $($E.Error) Se omite ${d}: su contenido ya no coincide con las huellas guardadas."; Write-Log "Restaurar: omitida $d, manifiesto no coincide"; continue }
+        }
         $idx = Join-Path $d 'indice.txt'
-        if (Test-Path -LiteralPath $idx) { foreach ($l in Get-Content -LiteralPath $idx -Encoding UTF8) { $o, $q = $l -split '\|', 2; try { New-Item -ItemType Directory -Force (Split-Path $o -Parent) | Out-Null; if (Test-Path -LiteralPath $o) { Write-Output "    $($E.Aviso) Ya existe, se omite: $o" } else { Move-Item -LiteralPath $q -Destination $o -Force -ErrorAction Stop; Write-Output "    $($E.OK) $o" } } catch { Write-Output "    $($E.Error) $o -> $($_.Exception.Message)" } } }
+        if (Test-Path -LiteralPath $idx) { foreach ($l in Get-Content -LiteralPath $idx -Encoding UTF8) { $o, $q = $l -split '\|', 2; try {
+            $qc = [IO.Path]::GetFullPath($q)
+            $enSesion = $false; foreach ($t in @($sel.FullName) + @($dirs)) { if ($qc.StartsWith(([IO.Path]::GetFullPath($t).TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) { $enSesion = $true } }
+            if (-not $enSesion) { throw 'el origen no está dentro de la cuarentena' } New-Item -ItemType Directory -Force (Split-Path $o -Parent) | Out-Null; if (Test-Path -LiteralPath $o) { Write-Output "    $($E.Aviso) Ya existe, se omite: $o" } else { Move-Item -LiteralPath $q -Destination $o -Force -ErrorAction Stop; Write-Output "    $($E.OK) $o" } } catch { Write-Output "    $($E.Error) $o -> $($_.Exception.Message)" } } }
         foreach ($r in @(Get-ChildItem -LiteralPath (Join-Path $d 'Registro') -Filter *.reg -ErrorAction SilentlyContinue)) { & reg.exe import $r.FullName 2>&1 | Out-Null; Write-Output "    $(if ($LASTEXITCODE -eq 0) { $E.OK } else { $E.Error }) Registro: $($r.Name)" }
-        foreach ($r in @(Get-ChildItem -LiteralPath (Join-Path $d 'Registro') -Filter *_tarea.xml -ErrorAction SilentlyContinue)) { try { Register-ScheduledTask -TaskName ([IO.Path]::GetFileNameWithoutExtension($r.Name)) -Xml (Get-Content -LiteralPath $r.FullName -Raw) -ErrorAction Stop | Out-Null; Write-Output "    $($E.OK) Tarea restaurada: $($r.Name)" } catch { Write-Output "    $($E.Aviso) Tarea no restaurada: $($_.Exception.Message)" } }
+        foreach ($r in @(Get-ChildItem -LiteralPath (Join-Path $d 'Registro') -Filter *_tarea.xml -ErrorAction SilentlyContinue)) { try {
+            # El nombre y la ruta originales van dentro del XML (<URI>): sin eso la tarea volvería a la raíz como «001_tarea»
+            $xt = Get-Content -LiteralPath $r.FullName -Raw; $tnom = [IO.Path]::GetFileNameWithoutExtension($r.Name); $tpath = '\'
+            try { $uri = [string]([xml]$xt).Task.RegistrationInfo.URI; if ($uri -match '^(\\(?:[^\\*?]+\\)*)([^\\*?]+)$' -and $uri -notmatch '\.\.') { $tpath = $Matches[1]; $tnom = $Matches[2] } } catch { }
+            Register-ScheduledTask -TaskName $tnom -TaskPath $tpath -Xml $xt -ErrorAction Stop | Out-Null; Write-Output "    $($E.OK) Tarea restaurada: $($r.Name)" } catch { Write-Output "    $($E.Aviso) Tarea no restaurada: $($_.Exception.Message)" } }
     }
     Write-Output "`n  $($E.OK) Restauración terminada. Puede hacer falta reinstalar el programa si se desinstaló."; Write-Log "Restaurada cuarentena $($sel.Name)"; return
 }
@@ -393,7 +422,7 @@ foreach ($sel in $seleccion) {
 }
 $seleccion = @($seguir)
 if (-not $seleccion.Count) { Exit-Kit 'Cancelado' 'Cancelado.' }
-if (-not $Auto -and -not $SoloAnalizar) {
+if (-not $Auto -and -not $SoloAnalizar -and -not $SinConfirmar) {   # -SinConfirmar: lo pasa la app de Limpieza, que ya preguntó en su pantalla (el aviso de componente compartido y la revisión de restos siguen)
     $lista = ($seleccion | ForEach-Object { "• $($_.Nombre)" }) -join "`n"
     $que = if ($seleccion.Count -gt 1) { "Se van a desinstalar $($seleccion.Count) programas" } else { 'Se va a desinstalar un programa' }
     $q = [Windows.Forms.MessageBox]::Show("$que y a buscar sus restos:`n`n$lista`n`n$(if ($borrarDatos) { 'Se propondrá borrar también tus datos y configuración.' } else { 'Tus datos y configuración se conservarán.' })`nLo que borres irá a una cuarentena reversible.`n`n¿Continuar?", 'Desinstalar por completo', 'YesNo', 'Question')

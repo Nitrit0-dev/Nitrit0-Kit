@@ -12,7 +12,8 @@
 param([Alias('SoloAnalizar', 'Simular')][switch]$SinPreguntas)   # -SinPreguntas ya solo diagnostica
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
-$lista = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+if (-not $SinPreguntas) { Assert-Admin 'reparar perfiles de usuario' }
+$lista ='HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
 
 Write-Output "========================================================"
 Write-Output "  $($E.Lupa) PERFILES DE USUARIO"

@@ -8,6 +8,7 @@
 param([Alias('SoloAnalizar')][switch]$Simular)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if (-not $Simular) { Assert-Admin 'actualizar la versión de Windows' }
 Write-Output "========================================================"
 Write-Output "  $($E.Refresh) ACTUALIZAR A LA ÚLTIMA VERSIÓN DE WINDOWS 11"
 Write-Output "========================================================"
@@ -21,13 +22,14 @@ Write-Output ("  Espacio libre en {0}: {1:N1} GB" -f $env:SystemDrive, $libre)
 if ($libre -lt 15) { Write-Output "  $($E.Error) Hace falta al menos 15 GB libres. Libera espacio (Limpiar temporales / Analizar espacio) y repite."; exit 1 }
 $bat = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
 if ($bat -and $bat.BatteryStatus -eq 1 -and $bat.EstimatedChargeRemaining -lt 50) { Write-Output "  $($E.Error) Conecta el cargador antes de actualizar (batería al $($bat.EstimatedChargeRemaining) %)."; exit 1 }
+try { if ((Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop).ProtectionStatus -eq 'On') { Write-Output "  $($E.Aviso) El disco del sistema tiene BitLocker activo: asegúrate de tener la clave de recuperación guardada antes de seguir." } } catch { }
 if (-not (Test-Internet)) { Write-Output "  $($E.Error) Sin conexión a Internet."; exit 1 }
 $pend = (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
 if ($pend) { Write-Output "  $($E.Aviso) Hay un reinicio pendiente. Reinicia el equipo y vuelve a ejecutar esto."; exit 1 }
 
 if (-not (Confirm-Accion "Esto actualiza Windows a la última versión: tarda entre 30 y 90 minutos y reinicia el equipo.`nGuarda antes tu trabajo y conecta el cargador.`n
 ¿Continuar?")) { Exit-Kit 'Cancelado' 'Cancelado: no se ha cambiado nada.' }
-if (-not $Simular) { [void](Start-OperacionSegura 'Actualizar versión de Windows') }   # punto de restauración antes del asistente de actualización
+if (-not $Simular) { Confirm-EquipoListo 'actualizar la versión de Windows'; [void](Start-OperacionSegura 'Actualizar versión de Windows') }   # punto de restauración antes del asistente de actualización
 $dest = Join-Path $Global:NitKit.Cache 'Windows11InstallationAssistant.exe'
 Write-Output "  $($E.Cohete) Descargando el Asistente de instalación de Windows 11 (≈ 4 MB, de microsoft.com)…"
 if ($Simular) { Write-Output "  (simulación) se descargaría y ejecutaría el asistente."; return }

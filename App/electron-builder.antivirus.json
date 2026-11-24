@@ -1,0 +1,13 @@
+{
+  "appId": "es.nitrit0.antivirus",
+  "productName": "Nitrit0 Antivirus",
+  "electronVersion": "45.3.1",
+  "electronDist": "node_modules/electron/dist",
+  "extraMetadata": { "main": "./out-antivirus/main/index.js" },
+  "directories": { "output": "bin-antivirus" },
+  "extraResources": [{ "from": "build/icono-256.png", "to": "icono.png" }],
+  "files": ["out-antivirus/**", "package.json", "!**/node_modules/**"],
+  "compression": "maximum",
+  "win": { "target": [{ "target": "portable", "arch": ["x64"] }], "icon": "build/icono.ico", "signAndEditExecutable": false },
+  "portable": { "artifactName": "Nitrit0_Antivirus.exe", "requestExecutionLevel": "user" }
+}

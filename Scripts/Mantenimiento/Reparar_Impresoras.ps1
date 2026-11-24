@@ -8,6 +8,7 @@
 param([switch]$SinPreguntas, [Alias('Simular')][switch]$SoloAnalizar)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
+if (-not $SoloAnalizar) { Assert-Admin 'reparar las impresoras' }
 $estados = @{ 1 = 'Otro'; 2 = 'Desconocido'; 3 = 'Lista'; 4 = 'Imprimiendo'; 5 = 'Calentando'; 6 = 'Detenida'; 7 = 'Sin conexión' }
 
 function Show-Impresoras {

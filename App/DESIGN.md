@@ -65,3 +65,10 @@ Pestaña «Ajustes» dentro de Herramientas (modo técnico), también desde la t
 - **De momento 5 ajustes** (barra de tareas: Vista de tareas, alineación, búsqueda; Explorador: extensiones y archivos ocultos). Para añadir uno basta una entrada en la tabla del script y regenerar la integridad.
 - **Tema:** desplegable en el lateral (Oscuro, Claro, Igual que Windows) en vez del botón que alternaba dos; en el modo sencillo, un enlace del pie que va pasando por los tres. `Ajustes.json`: `TemaModo` = lo elegido, `Tema` = el efectivo (para las herramientas antiguas de PowerShell).
 - Pendiente: ajustes de la propia app (idioma, cómo se aplican los cambios) y perfiles con revisión.
+
+## Pulido de legibilidad y amabilidad (2026-11-21)
+- Texto base de 15 px (antes 14) y controles más cómodos: botones y chips con altura mínima (36 y 32 px), menú lateral de 38 px, filas de herramientas con más aire. El modo sencillo mantiene sus 44 px.
+- Cumplidas las reglas de la casa que se habían colado: el veredicto ya no lleva franja de color a un lado (borde entero y fondo muy suave del tono), los sellos ya no son píldoras (radio de 6 px) y el menú de Limpieza ya no marca la página actual con una barra lateral.
+- Casillas de Limpieza de 22 px, como las de la app principal; estado pulsado en los botones; botones del menú de Limpieza atenuados mientras hay una operación en marcha.
+- Estilos en línea sustituidos por clases (`al-final`, `bloque-ancho`, `sep-arriba`, `sep-abajo`). Quedan unos pocos en Limpieza y el cálculo del medidor.
+- Las solapas siguen siendo navegación y no un `tablist`; el comentario del componente decía lo contrario y se ha corregido.

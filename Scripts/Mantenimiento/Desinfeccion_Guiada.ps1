@@ -61,6 +61,7 @@ foreach ($h in $hay) {
     Write-Progreso $k $hay.Count $h.N; $k++   # barra de la app
     if ($abiertos -gt 0 -and -not $SinPreguntas -and -not (Confirm-Accion "Siguiente escáner: $($h.N).`n`n¿Lo abro ahora? (No = se salta este y se termina.)" 'Nitrit0 Kit - Desinfección')) { Write-Output "  $($E.Info) Se omite $($h.N) y los siguientes."; break }
     try {
+        $m = Test-ScriptAutorizado $h.Ruta; if ($m) { Write-Output "  $($E.Aviso) No se abre $($h.N): $m."; Write-Log "Desinfeccion_Guiada: $($h.N) no autorizado ($m)" 'AVISO'; continue }
         $local = Copy-AlCache $h.Ruta   # se ejecuta desde el PC, no desde el pendrive: más rápido y no lo bloquea
         Write-Output "  $($E.Cohete) Abriendo $($h.N): haz el análisis y CIERRA su ventana al terminar para continuar."
         $p = Start-Process -FilePath $local -PassThru -ErrorAction Stop

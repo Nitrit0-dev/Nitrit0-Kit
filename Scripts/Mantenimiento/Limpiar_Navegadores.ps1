@@ -15,7 +15,15 @@ param([switch]$SoloAnalizar, [switch]$SinPreguntas)
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
 $E = $Global:E
 function Format-Tam([int64]$b) { if ($b -ge 1GB) { '{0:N1} GB' -f ($b / 1GB) } elseif ($b -ge 1MB) { '{0:N0} MB' -f ($b / 1MB) } else { '{0:N0} KB' -f ($b / 1KB) } }
-function Get-TamRutas([string[]]$rutas) {
+# Borra un árbol sin entrar en enlaces (junctions y simbólicos): en PowerShell 5.1 Remove-Item -Recurse los sigue y borraría fuera de la carpeta prevista. Un enlace se quita sin tocar su destino.
+function Remove-ArbolSinEnlaces([string]$ruta) {
+    $it = Get-Item -LiteralPath $ruta -Force -ErrorAction Stop
+    if ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) { if ($it.PSIsContainer) { & (Join-Path $env:SystemRoot 'System32\cmd.exe') /c rmdir "$ruta" 2>&1 | Out-Null } else { Remove-Item -LiteralPath $ruta -Force -ErrorAction Stop }; return }
+    if ($it.PSIsContainer) {
+        foreach ($h in @(Get-ChildItem -LiteralPath $ruta -Force -ErrorAction SilentlyContinue)) { try { Remove-ArbolSinEnlaces $h.FullName } catch { } }
+        Remove-Item -LiteralPath $ruta -Force -ErrorAction Stop
+    } else { Remove-Item -LiteralPath $ruta -Force -ErrorAction Stop }
+}function Get-TamRutas([string[]]$rutas) {
     [int64]$t = 0
     foreach ($r in $rutas) {
         $i = Get-Item -LiteralPath $r -Force -ErrorAction SilentlyContinue; if (-not $i) { continue }
@@ -44,7 +52,7 @@ $navegadores = @(
 # Marcado = viene marcado; Peligro = pide confirmación fuerte (se pierde algo que no es recuperable del propio sitio)
 $cats = @(
     @{ Id = 'cache'; T = 'Caché de internet';                   M = $true;  P = $false; D = 'Imágenes y archivos temporales de las páginas; se vuelven a descargar.' }
-    @{ Id = 'hist';  T = 'Historial de navegación y descargas'; M = $true;  P = $false; D = 'Páginas visitadas y lista de descargas. Los archivos descargados no se tocan.' }
+    @{ Id = 'hist';  T = 'Historial de navegación y descargas'; M = $false; P = $false; D = 'Páginas visitadas y lista de descargas. Los archivos descargados no se tocan.' }
     @{ Id = 'cook';  T = 'Cookies';                             M = $false; P = $false; D = 'Cierra las sesiones abiertas en todas las webs.' }
     @{ Id = 'forms'; T = 'Datos de formularios guardados';      M = $false; P = $true;  D = 'Autorrelleno de direcciones, tarjetas y formularios.' }
     @{ Id = 'pass';  T = 'Contraseñas guardadas';               M = $false; P = $true;  D = 'Se pierden si no están sincronizadas con la cuenta del navegador.' }
@@ -66,6 +74,7 @@ $relFirefox = @{
     forms = 'formhistory.sqlite', 'formhistory.sqlite-wal', 'formhistory.sqlite-shm'
     pass  = 'logins.json', 'key4.db'
     ses   = 'sessionstore.jsonlz4', 'sessionstore-backups'
+    bkp   = 'bookmarkbackups', 'places.sqlite'
 }
 function Get-Perfiles($b) {
     if (-not (Test-Path -LiteralPath $b.Base)) { return @() }
@@ -132,13 +141,13 @@ foreach ($id in $ids) {
         $n = 0
         foreach ($r in $m.Rutas) {
             $dest = Join-Path $dir ('Marcadores\' + ($b.N -replace '\s', '_') + '_' + ((Split-Path (Split-Path $r -Parent) -Leaf) -replace '\s', '_'))
-            try { New-Item -ItemType Directory -Force $dest | Out-Null; Copy-Item -LiteralPath $r -Destination $dest -Force -ErrorAction Stop; $n++ } catch { $errores++; Write-Output "    $($E.Error) $($b.N): no se pudo copiar los marcadores ($($_.Exception.Message))." }
+            try { New-Item -ItemType Directory -Force $dest | Out-Null; Copy-Item -LiteralPath $r -Destination $dest -Force -Recurse -ErrorAction Stop; $n++ } catch { $errores++; Write-Output "    $($E.Error) $($b.N): no se pudo copiar los marcadores ($($_.Exception.Message))." }
         }
         if ($n) { Write-Output "    $($E.OK) $($b.N): copia de marcadores de $n perfil(es) en $dir\Marcadores"; Write-Log "Limpiar_Navegadores: copia de marcadores de $($b.N) en $dir" }
         continue
     }
     $en = 0
-    foreach ($r in $m.Rutas) { try { Remove-Item -LiteralPath $r -Recurse -Force -ErrorAction Stop } catch { if (Test-Path -LiteralPath $r) { $en++ } } }
+    foreach ($r in $m.Rutas) { try { Remove-ArbolSinEnlaces $r } catch { if (Test-Path -LiteralPath $r) { $en++ } } }
     $quedan = $en
     Write-Output "    $(if ($quedan) { $E.Aviso } else { $E.OK }) $($b.N) · $($c.T): $(Format-Tam $m.Tam)$(if ($quedan) { " ($quedan elemento(s) en uso se han dejado: cierra el navegador del todo y repite)" })"
     Write-Log "Limpiar_Navegadores: $($b.N) $($c.Id) ($quedan sin quitar)"

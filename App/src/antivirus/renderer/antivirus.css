@@ -1,0 +1,15 @@
+/* Solo lo que «Nitrit0 Antivirus» necesita además de la base visual del kit (tokens.css y componentes.css). */
+.app { grid-template-columns: minmax(0, 1fr); }
+.zona-suelta { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--borde-fuerte); border-radius: var(--radio); background: var(--superficie); text-align: center; color: var(--texto-suave); }
+.zona-suelta.encima { border-color: var(--acento); background: var(--acento-suave); color: var(--texto); }
+.zona-suelta b { color: var(--texto); font-weight: 500; font-size: 15px; }
+.resultado { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--superficie); min-width: 0; }
+.resultado .nombre { font-weight: 500; overflow-wrap: anywhere; }
+.resultado .sub { color: var(--texto-suave); font-size: 12.5px; overflow-wrap: anywhere; }
+.resultado .hash { font: 12px var(--mono); color: var(--tenue); overflow-wrap: anywhere; }
+.resultado .fila-acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.resultado .veredicto { margin: 0; }
+.resultados { display: flex; flex-direction: column; gap: 12px; }
+.campo-clave { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.campo-clave input { flex: 1; min-width: 260px; min-height: 36px; padding: 6px 10px; border: 1px solid var(--borde-fuerte); border-radius: var(--radio-chico); background: var(--fondo); color: var(--texto); font: 13px var(--mono); }
+.campo-clave input:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }

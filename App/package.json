@@ -11,6 +11,8 @@
     "tipos": "tsc --noEmit -p tsconfig.json",
     "empaquetar": "electron-vite build && node empaquetar.mjs",
     "empaquetar:unico": "electron-vite build && electron-builder --win portable --x64 && node poner_icono.mjs \"bin-unico/win-unpacked/Nitrit0 Kit.exe\"",
+    "antivirus": "electron-vite build --config electron.vite.antivirus.config.ts && electron-builder --config electron-builder.antivirus.json --win portable --x64 && node poner_icono.mjs \"bin-antivirus/win-unpacked/Nitrit0 Antivirus.exe\"",
+    "clonador": "electron-vite build --config electron.vite.clonador.config.ts && electron-builder --config electron-builder.clonador.json --win portable --x64 && node poner_icono.mjs \"bin-clonador/win-unpacked/Nitrit0 Clonador.exe\"",
     "limpieza": "electron-vite build --config electron.vite.limpieza.config.ts && electron-builder --config electron-builder.limpieza.json --win portable --x64 && node poner_icono.mjs \"bin-limpieza/win-unpacked/Nitrit0 Limpieza.exe\""
   },
   "dependencies": {
@@ -40,7 +42,7 @@
     "directories": {
       "output": "bin-unico"
     },
-    "extraResources": [{ "from": "build/icono-256.png", "to": "icono.png" }],
+    "extraResources": [{ "from": "build/icono-256.png", "to": "icono.png" }, { "from": "build/icono.ico", "to": "icono.ico" }],
     "files": [
       "out/**",
       "package.json",

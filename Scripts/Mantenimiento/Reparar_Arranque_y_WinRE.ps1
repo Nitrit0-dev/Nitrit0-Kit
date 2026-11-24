@@ -20,7 +20,9 @@ $bcdedit = Join-Path $sys32 'bcdedit.exe'; $bcdboot = Join-Path $sys32 'bcdboot.
 $tipoEfi = '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'
 
 # ---------------------------------------------------------------- Reponer una copia del BCD
+if ($RestaurarBcd -and $SoloAnalizar) { Exit-Kit 'Error' '-RestaurarBcd cambia el arranque y no se puede combinar con el modo solo análisis.' }   # antes la restauración corría igualmente: el modo de solo lectura se saltaba la comprobación de administrador
 if ($RestaurarBcd) {
+    Assert-Admin 'restaurar el arranque'
     if (-not (Test-Path -LiteralPath $RestaurarBcd)) { Exit-Kit 'Error' "No encuentro la copia del BCD: $RestaurarBcd" }
     if (-not (Confirm-Accion "Se va a SUSTITUIR el almacén de arranque actual por:`n$RestaurarBcd`n`nSi la copia no es de este equipo y este disco, Windows podría no arrancar.`n`n¿Continuar?" 'Nitrit0 Kit - Restaurar arranque' -Siempre)) { Exit-Kit 'Cancelado' 'Cancelado: no se ha tocado el arranque.' }
     try { $r = Invoke-Proceso $bcdedit ('/import "{0}"' -f $RestaurarBcd) 60 'Restaurar BCD' 20 } catch { Exit-Kit 'Error' "No se pudo restaurar: $($_.Exception.Message)" }
@@ -74,6 +76,14 @@ if ($null -eq $elegidos -or -not $elegidos.Count) { Exit-Kit 'Cancelado' 'No se 
 $ids = @($elegidos | ForEach-Object { $_.Id })
 $lista = (@(if ('bcdboot' -in $ids) { '• reconstruir los archivos de arranque' }; if ('winre' -in $ids) { '• habilitar WinRE' }) -join "`n")
 if (-not (Confirm-Accion "VAS A MODIFICAR EL ARRANQUE DE WINDOWS:`n$lista`n`nSe guarda antes una copia del BCD. Un corte de luz durante el proceso puede dejar el equipo sin arrancar.`n`n¿Continuar?" 'Nitrit0 Kit - Confirmación crítica' -Siempre)) { Exit-Kit 'Cancelado' 'Cancelado: no se ha tocado el arranque.' }
+# BitLocker: tocar el BCD o la EFI puede hacer que el equipo pida la clave de recuperación al reiniciar. Se suspende para el próximo reinicio; si no se puede, se avisa y se pide confirmar
+if (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) {
+    $blv = $null; try { $blv = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop } catch { }
+    if ($blv -and $blv.ProtectionStatus -eq 'On') {
+        try { Suspend-BitLocker -MountPoint $env:SystemDrive -RebootCount 1 -ErrorAction Stop | Out-Null; Write-Output "  $($E.Info) BitLocker suspendido para el próximo reinicio (se reactiva solo)." }
+        catch { if (-not (Confirm-Accion "BitLocker está activo y no se ha podido suspender ($($_.Exception.Message)).`n`nAl reiniciar, el equipo puede pedir la clave de recuperación. Ten la clave a mano.`n`n¿Continuar de todos modos?" 'Nitrit0 Kit - BitLocker' -Siempre)) { Exit-Kit 'Cancelado' 'Cancelado: no se ha tocado el arranque.' } }
+    }
+}
 
 # ---------------------------------------------------------------- Hacerlo
 $errores = 0

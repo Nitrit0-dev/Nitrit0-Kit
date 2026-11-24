@@ -33,7 +33,7 @@ if ($e0.Driver) {
     } else { Exit-Kit 'Cancelado' 'No se cambia nada.' }
 } elseif ($e0.Sensores) {
     if (Confirm-Accion "Para medir la temperatura real de la CPU, los ventiladores y la potencia hace falta instalar el controlador de sensores PawnIO (firmado, de código abierto).`n`nSe instala una vez por equipo y se puede quitar desde esta misma herramienta.`nSin él todo funciona igual, pero la temperatura de la CPU no será fiable.`n`n¿Lo instalo ahora?") {
-        [void](Start-OperacionSegura 'Componentes del kit' -SinPuntoRestauracion)
+        [void](Start-OperacionSegura 'Componentes del kit')   # driver de kernel: con punto de restauración
         $r = Invoke-Pawnio 'instalar'
         Write-Output $(if ($r.Ok) { "  $($E.OK) Controlador instalado. Ya se puede leer la temperatura real." } else { "  $($E.Aviso) No se pudo instalar: $($r.Mensaje)" }); Write-Log "Componentes_Kit: instalar PawnIO -> $($r.Ok)"
         if ($r.Ok) { Save-Informativo 'Controlador PawnIO instalado' 'Para quitarlo, abre esta misma herramienta y acepta quitarlo (recomendado en equipos de clientes).' } else { exit 1 }

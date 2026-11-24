@@ -95,7 +95,8 @@ public static class PantallaApi
     }
 
     // Devuelve 0 si se aplicó; otro valor = código DISP_CHANGE_*
-    public static int Aplicar(string dev, uint w, uint h, uint hz)
+    // guardar = false: cambio temporal (no toca el registro); si nadie lo confirma y el proceso muere, al reiniciar o cerrar sesión Windows vuelve a la resolución de antes
+    public static int Aplicar(string dev, uint w, uint h, uint hz, bool guardar = true)
     {
         var dm = Nuevo();
         if (!EnumDisplaySettings(dev, -1, ref dm)) return -99;
@@ -103,7 +104,7 @@ public static class PantallaApi
         dm.dmFields = 0x80000 | 0x100000 | 0x400000;   // ancho | alto | frecuencia
         int t = ChangeDisplaySettingsEx(dev, ref dm, IntPtr.Zero, 0x2, IntPtr.Zero);   // CDS_TEST
         if (t != 0) return t;
-        return ChangeDisplaySettingsEx(dev, ref dm, IntPtr.Zero, 0x1, IntPtr.Zero);    // CDS_UPDATEREGISTRY
+        return ChangeDisplaySettingsEx(dev, ref dm, IntPtr.Zero, guardar ? 0x1u : 0u, IntPtr.Zero);    // CDS_UPDATEREGISTRY o solo temporal
     }
 
     public static bool ClearTypeActivo()
@@ -225,9 +226,10 @@ try {
 
     if (-not $ct) { [PantallaApi]::ActivarClearType(); Write-Output "$($Global:E.OK) ClearType activado." }
     foreach ($c in $propuestas) {
-        $cod = [PantallaApi]::Aplicar($c.Dev, $c.W, $c.H, $c.Hz)
+        $cod = [PantallaApi]::Aplicar($c.Dev, $c.W, $c.H, $c.Hz, $false)   # primero temporal: solo se guarda si la persona confirma que se ve bien
         if ($cod -ne 0) { Write-Output "$($Global:E.Error) $($c.Dev): Windows rechazó el cambio (código $cod)."; continue }
         if (Confirm-Cambio -Texto "$($c.Dev) ahora en $($c.W)x$($c.H) a $($c.Hz) Hz. ¿Se ve bien?") {
+            [void][PantallaApi]::Aplicar($c.Dev, $c.W, $c.H, $c.Hz, $true)
             Write-Output "$($Global:E.OK) $($c.Dev): $($c.W)x$($c.H) a $($c.Hz) Hz aplicado."
         } else {
             [void][PantallaApi]::Aplicar($c.Dev, $c.Antes[0], $c.Antes[1], $c.Antes[2])

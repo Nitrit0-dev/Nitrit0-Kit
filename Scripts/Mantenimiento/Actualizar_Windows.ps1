@@ -20,6 +20,7 @@ if ($SoloAnalizar) {
     } else { Write-Output "  $($Global:E.Info) Modo análisis: se instalaría el módulo PSWindowsUpdate y después las actualizaciones de Windows y drivers." }
     Exit-Kit 'Ok' 'Modo análisis: no se ha instalado nada.'
 }
+Confirm-EquipoListo 'actualizar Windows y drivers'
 [void](Start-OperacionSegura 'Actualizar Windows y drivers')   # punto de restauración antes de instalar actualizaciones
 if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
     Write-Output "  $($Global:E.Reloj) Instalando módulo PSWindowsUpdate (puede tardar un poco)..."

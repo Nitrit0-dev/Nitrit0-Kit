@@ -10,6 +10,7 @@ param(
 )
 
 if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Comun.ps1'); Initialize-Kit (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
+Assert-Admin 'leer las licencias y las claves de BitLocker'
 Write-Log 'Licencias y BitLocker: informe generado en %TEMP% (contiene claves; no se guarda en el pendrive)'
 $ErrorActionPreference = "SilentlyContinue"
 $InformesDir = Join-Path $env:TEMP "Nitrit0_Cache\Informes"   # claves en claro: nunca en el pendrive

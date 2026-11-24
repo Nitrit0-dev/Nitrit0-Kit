@@ -11,7 +11,7 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) { . (Join-Path (
 $E = $Global:E
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'Historial.ps1')   # Get-IdEquipo
 function Esc($t) { [Net.WebUtility]::HtmlEncode([string]$t) }
-$datos = Get-KitDatos
+$datos = Get-BaseTrabajo
 
 # --- Diagnósticos guardados de este equipo: el primero es «al llegar» y el último «al entregar» ---
 $diag = @(Get-ChildItem -LiteralPath (Join-Path $datos "Historial\$(Get-IdEquipo)") -Filter *.json -ErrorAction SilentlyContinue | Sort-Object Name)
@@ -63,6 +63,21 @@ if ($ini) {
 # Si un trabajo se repitió, cuenta la última vez
 $trabajos = @($trabajos | Group-Object Titulo | ForEach-Object { $_.Group[-1] } | Sort-Object Fecha)
 $filasTrab = ($trabajos | ForEach-Object { "<tr><td>$($_.Fecha.ToString('dd/MM/yyyy HH:mm'))</td><td>$(Esc $_.Titulo)</td><td>$(if ($_.Bien) { "<span class='c ok'>Hecho</span>" } else { "<span class='c av'>$(Esc $_.Resultado)</span>" })</td></tr>" }) -join ''
+# --- Puntaje: de 0 a 100 con las mismas comprobaciones al llegar y al entregar (Bien = 1, Aviso = medio, Fallo = 0) ---
+$puntaje = { param($lista) $v = @($lista | Where-Object { $_.Estado -in 'OK', 'Aviso', 'Fallo' }); if ($v.Count) { [math]::Round(100 * (@($v | Where-Object Estado -eq 'OK').Count + 0.5 * @($v | Where-Object Estado -eq 'Aviso').Count) / $v.Count) } }
+$bloquePuntaje = ''
+if ($ini) {
+    $comunes = if ($fin) { $ids = @($fin.Pruebas | ForEach-Object { $_.Id }); @($ini.Pruebas | Where-Object { $_.Id -in $ids }) } else { @($ini.Pruebas) }
+    $pIni = & $puntaje $comunes
+    $pFin = if ($fin) { $idc = @($comunes | ForEach-Object { $_.Id }); & $puntaje @($fin.Pruebas | Where-Object { $_.Id -in $idc }) }
+    if ($null -ne $pIni) {
+        $n = @($comunes | Where-Object { $_.Estado -in 'OK', 'Aviso', 'Fallo' }).Count
+        $dif = if ($null -ne $pFin) { $pFin - $pIni } else { 0 }
+        $colorDif = if ($dif -gt 0) { 'ok' } elseif ($dif -lt 0) { 'fa' } else { 'in' }
+        $signo = if ($dif -gt 0) { '+' } else { '' }
+        $bloquePuntaje = "<div class='punt'><div><span class='s'>Al llegar</span><b>$pIni</b></div>" + $(if ($null -ne $pFin) { "<div class='flecha'>→</div><div><span class='s'>Al entregar</span><b class='$colorDif'>$pFin</b></div><div class='dif $colorDif'>$signo$dif puntos</div>" } else { "<div class='s'>Falta un segundo diagnóstico al entregar para ver la mejora.</div>" }) + "</div><p class='s'>Puntaje de 0 a 100 calculado con $n comprobaciones del diagnóstico: cada «Bien» suma 1, cada «Aviso» medio punto y cada «Fallo» nada.</p>"
+    }
+}
 $fechaIni = if ($ini) { ([datetime]$ini.Fecha).ToString('dd/MM/yyyy HH:mm') }; $fechaFin = if ($fin) { ([datetime]$fin.Fecha).ToString('dd/MM/yyyy HH:mm') }
 
 $html = @"
@@ -80,6 +95,9 @@ $html = @"
   th { text-align: left; font-weight: 600; color: #525252; }
   th, td { padding: 6px 8px 6px 0; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
   .c { font-weight: 600; } .ok { color: #16a34a; } .av { color: #b45309; } .fa { color: #dc2626; } .in { color: #525252; }
+  .punt { display: flex; align-items: center; gap: 24px; margin: 4px 0 8px; }
+  .punt div { display: flex; flex-direction: column; } .punt b { font-size: 40px; line-height: 44px; font-weight: 600; }
+  .punt .flecha { font-size: 28px; color: #525252; } .punt .dif { font-size: 15px; font-weight: 600; }
   .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px; }
   .firmas div { border-top: 1px solid #171717; padding-top: 6px; font-size: 12px; color: #525252; }
   @media print { body { background: #fff; } .hoja { border: 0; margin: 0; padding: 0; max-width: none; } }
@@ -97,6 +115,7 @@ $html = @"
 <h2>Trabajos realizados</h2>
 $(if ($filasTrab) { "<table><tr><th>Fecha</th><th>Trabajo</th><th>Resultado</th></tr>$filasTrab</table>" } else { "<p class='sub'>No hay trabajos del kit registrados en este equipo en los últimos $Dias días.</p>" })
 <h2>Estado del equipo</h2>
+$bloquePuntaje
 $(if ($filasDiag) { "<table><tr><th>Comprobación</th><th>Al llegar$(if ($fechaIni) { "<br><span class='s'>$fechaIni</span>" })</th>$(if ($fin) { "<th>Al entregar<br><span class='s'>$fechaFin</span></th>" })<th>Detalle</th></tr>$filasDiag</table>" } else { "<p class='sub'>No hay diagnósticos guardados de este equipo. Pasa el «Diagnóstico rápido» antes y después del trabajo para que salgan aquí.</p>" })
 $(if ($Notas) { "<h2>Recomendaciones</h2><p>$(Esc $Notas)</p>" })
 <div class="firmas"><div>Técnico</div><div>Cliente (recibí el equipo conforme)</div></div>

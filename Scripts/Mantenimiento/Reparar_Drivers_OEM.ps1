@@ -170,10 +170,21 @@ if (-not ($esHP -or $esLenovo)) {
                 $r = Invoke-Proceso $dcu '/scan -silent' 900 'Dell Command Update (búsqueda)' 30
                 Write-Output "      $($E.Info) Búsqueda de Dell terminada (código $($r.Codigo))."
                 if (($r.Codigo -in 0, 500) -and -not $Opt.Consulta -and (& $pregunta 'Dell Command | Update instalará los drivers y la BIOS pendientes sin reiniciar el equipo. ¿Aplicar ahora?')) {
-                    [void](Start-OperacionSegura 'Drivers del fabricante (Dell)')
-                    $r = Invoke-Proceso $dcu '/applyUpdates -silent -reboot=disable' 3600 'Dell Command Update (instalación)' 30
-                    Save-Informativo 'Actualizaciones de Dell aplicadas con Dell Command | Update' 'Para volver atrás: Revertir controlador en el Administrador de dispositivos o el punto de restauración.'
-                    Write-Output "      $(if ($r.Codigo -in 0, 1, 5) { $E.OK } else { $E.Aviso }) Dell Command | Update terminó con código $($r.Codigo) (1 y 5 indican que hace falta reiniciar)."; $hecho = $true
+                    # Dell Command | Update puede incluir la BIOS: igual que con HP, no se aplica con el portátil a batería ni sin poder suspender BitLocker (si no, al reiniciar pediría la clave de recuperación)
+                    $motivoNo = $null
+                    $batD = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($batD -and $batD.BatteryStatus -eq 1) { $motivoNo = 'el equipo está con batería: conecta el cargador' }
+                    elseif (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) {
+                        try { $blD = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop; if ($blD.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint $env:SystemDrive -RebootCount 1 -ErrorAction Stop | Out-Null; Write-Output "      $($E.Info) BitLocker suspendido para el próximo reinicio (se reactiva solo)." } }
+                        catch { $motivoNo = "no se pudo comprobar o suspender BitLocker ($($_.Exception.Message))" }
+                    }
+                    if ($motivoNo) { Write-Output "      $($E.Aviso) No se aplican las actualizaciones de Dell: $motivoNo." }
+                    else {
+                        [void](Start-OperacionSegura 'Drivers del fabricante (Dell)')
+                        $r = Invoke-Proceso $dcu '/applyUpdates -silent -reboot=disable' 3600 'Dell Command Update (instalación)' 30
+                        Save-Informativo 'Actualizaciones de Dell aplicadas con Dell Command | Update' 'Para volver atrás: Revertir controlador en el Administrador de dispositivos o el punto de restauración.'
+                        Write-Output "      $(if ($r.Codigo -in 0, 1, 5) { $E.OK } else { $E.Aviso }) Dell Command | Update terminó con código $($r.Codigo) (1 y 5 indican que hace falta reiniciar)."; $hecho = $true
+                    }
                 }
             } else { Write-Output "      $($E.Aviso) Instala Dell Command | Update desde dell.com/support para este modelo." }
         }
@@ -307,6 +318,7 @@ if ($Opt.Consulta) {
 # ---------------------------------------------------------------------
 #  A partir de aquí se cambia el equipo
 # ---------------------------------------------------------------------
+Assert-Admin 'instalar drivers'   # hasta aquí solo se consultaba; descargar e instalar sin administrador fallaría al final de todo el recorrido
 $hayBios = [bool]($pend | Where-Object { $_.Orden -eq 4 })
 if ($hayBios) {
     $bat = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -359,7 +371,14 @@ foreach ($p in ($listos | Sort-Object Orden)) {
             if ($p.Orden -eq 4) {
                 $upd = Get-ChildItem -LiteralPath $dir -Recurse -Include 'HpFirmwareUpdRec64.exe', 'HPBIOSUPDREC64.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
                 if (-not $upd) { throw "el paquete no trae el actualizador de BIOS; queda extraído en $dir" }
-                try { $bl = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop; if ($bl.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint $env:SystemDrive -RebootCount 1 -ErrorAction Stop | Out-Null; Write-Output "      $($E.Info) BitLocker suspendido para el próximo reinicio (se reactiva solo)." } } catch { }
+                # Si BitLocker está activo y no se puede suspender, NO se prepara la BIOS: al reiniciar el equipo pediría la clave de recuperación y el cliente se quedaría bloqueado
+                if (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) {
+                    try { $bl = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop } catch { throw "no se pudo comprobar BitLocker ($($_.Exception.Message)); no se prepara la BIOS por seguridad" }
+                    if ($bl.ProtectionStatus -eq 'On') {
+                        try { Suspend-BitLocker -MountPoint $env:SystemDrive -RebootCount 1 -ErrorAction Stop | Out-Null; Write-Output "      $($E.Info) BitLocker suspendido para el próximo reinicio (se reactiva solo)." }
+                        catch { throw "no se pudo suspender BitLocker ($($_.Exception.Message)); sin eso el equipo pediría la clave de recuperación tras la BIOS. No se prepara" }
+                    }
+                }
                 $r = Invoke-Proceso $upd.FullName '-s -r -b' 900 'Preparación de la BIOS' 30
                 if ($r.Codigo -in 0, 3010, 282, 273) { $reinicio = $true; Save-Informativo "BIOS HP actualizada de $($bios.SMBIOSBIOSVersion) a $($p.Version)" 'No se deshace desde Windows. HP guarda la versión anterior y la recupera sola si el arranque falla.'; Write-Output "      $($E.OK) BIOS preparada: se instala al REINICIAR. No apagues ni desenchufes el equipo durante ese arranque." }
                 else { throw "el actualizador de BIOS terminó con código $($r.Codigo) (si la BIOS tiene contraseña de administrador, hay que quitarla o actualizar desde la propia BIOS)" }
@@ -379,7 +398,12 @@ foreach ($p in ($listos | Sort-Object Orden)) {
                 if ($p.Instalar) { $o = Resolve-OrdenLenovo $p.Instalar $dir; $r = Invoke-Proceso $o.Exe $o.Argumentos 1200 "Instalación de $($p.Id)" 30 }
             } finally { Pop-Location }
             if (-not $p.Instalar) {
-                if ($p.Inf) { $r = Invoke-Proceso "$env:SystemRoot\System32\pnputil.exe" "/add-driver `"$(Join-Path $dir $p.Inf)`" /install" 900 "Instalación de $($p.Id)" 30 }
+                if ($p.Inf) {
+                    # El .inf viene del XML del fabricante (sin firma): debe quedar DENTRO de la carpeta del paquete (nada de «..» ni rutas absolutas)
+                    $infRuta = [IO.Path]::GetFullPath((Join-Path $dir ([string]$p.Inf)))
+                    if (-not $infRuta.StartsWith($dir.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "el .inf del paquete apunta fuera de su carpeta ($($p.Inf)): no se instala" }
+                    $r = Invoke-Proceso "$env:SystemRoot\System32\pnputil.exe" "/add-driver `"$infRuta`" /install" 900 "Instalación de $($p.Id)" 30
+                }
                 else { throw 'la ficha del paquete no indica cómo instalarlo' }
             }
             $buenos = @(0, 3010) + @(($p.Rc -split ',') | Where-Object { $_ -match '^\s*\d+\s*$' } | ForEach-Object { [int]$_ })

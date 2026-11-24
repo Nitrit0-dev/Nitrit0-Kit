@@ -36,6 +36,7 @@ function Start-SesionAjustes {
     if ($previa) {
         try {
             $j = Get-Content -LiteralPath (Join-Path $previa.FullName 'cambios.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$j.Equipo -ne $env:COMPUTERNAME) { throw 'sesión de otro equipo' }
             $cam = New-Object Collections.Generic.List[object]; foreach ($c in @($j.Cambios)) { $cam.Add($c) }
             $Global:NitOp = @{ Id = $j.Id; Nombre = $j.Nombre; Dir = $previa.FullName; Equipo = $j.Equipo; Fecha = $j.Fecha; Cambios = $cam }
             return

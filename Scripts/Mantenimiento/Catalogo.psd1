@@ -24,7 +24,7 @@ QUÉ HACE: abre una ventana para elegir el modo. Todo lo que cambia el registro,
         Ayuda = @'
 QUÉ HACE: quita el límite de procesadores del arranque, fija el archivo de paginación (con topes y solo si hay espacio), lanza TRIM o desfragmentación de C: según el tipo de disco y limpia componentes antiguos de Windows Update (DISM).
 '@ }
-    'Reparar_Windows_y_Tienda.ps1' = @{ Titulo = 'Reparar Windows y Tienda'; Simulable = $true; Categoria = 'Mantenimiento'; Peligroso = $false; SinDestino = $true
+    'Reparar_Windows_y_Tienda.ps1' = @{ Titulo = 'Reparar Windows y Tienda'; Timeout = 9000; Simulable = $true; Categoria = 'Mantenimiento'; Peligroso = $false; SinDestino = $true
         Descripcion = 'Verifica el disco (chkdsk /scan), repara la imagen de Windows (DISM + SFC /scannow) y limpia la caché de Microsoft Store.'
         Ayuda = @'
 CUÁNDO USARLO: cuando el equipo tiene fallos inexplicables, pantallazos, archivos corruptos de Windows o la tienda Microsoft Store no abre/no descarga.
@@ -177,6 +177,12 @@ Para problemas de conexión sin causa clara (sin Internet con Wi-Fi conectado, p
     'Hora_y_Sincronizacion.ps1' = @{ Titulo = 'Hora y sincronización'; Categoria = 'Mantenimiento'; Peligroso = $false; SinDestino = $true; Timeout = 600; Simulable = $true
         Descripcion = 'La hora va mal o da errores de certificado y de inicio de sesión: mide el desfase contra un servidor de hora, comprueba el servicio y sincroniza.'
         Ayuda = 'Mide el desfase con una consulta NTP directa (no depende del idioma de Windows). Puedes poner el servicio de hora en automático, configurar los servidores (time.windows.com y pool.ntp.org; no hace falta en un dominio) y sincronizar. Si la hora se desajusta al apagar el equipo, suele ser la pila de la placa base. La zona horaria no se cambia.' }
+    'Entorno_Corporativo.ps1' = @{ Titulo = 'Equipo de empresa'; Categoria = 'Diagnóstico'; Peligroso = $false; SinDestino = $true; Timeout = 120; Simulable = $false
+        Descripcion = 'Vas a tocar un equipo que quizá no es de un particular: comprueba si lo gestiona una empresa (dominio, Entra ID, Intune, directivas de grupo).'
+        Ayuda = 'Solo lee el registro y los datos del sistema; no cambia nada. Si hay indicios de gestión, avisa a quien lo administra antes de tocar red, directivas, usuarios o programas. No ve lo que una empresa pueda aplicar más tarde.' }
+    'Certificados_Arranque_Seguro.ps1' = @{ Titulo = 'Certificados de arranque seguro'; Categoria = 'Diagnóstico'; Peligroso = $false; SinDestino = $true; Timeout = 300; Simulable = $true
+        Descripcion = 'Los certificados de Microsoft de 2011 caducan en 2026: comprueba si el equipo ya tiene los de 2023 y, si faltan, ofrece lanzar la actualización.'
+        Ayuda = 'Mira Secure Boot, las variables UEFI db y KEK y el estado de la actualización de Windows. No cambia nada hasta que lo confirmas. Si faltan certificados y confirmas, crea un punto de restauración, suspende BitLocker durante 2 reinicios y lanza la tarea de Windows que los aplica; después hay que reiniciar. En algún equipo la BIOS pide la clave de BitLocker al reiniciar: ten la clave de recuperación. Necesita administrador.' }
     'Que_Esta_Frenando_Ahora.ps1' = @{ Titulo = 'Qué lo está frenando ahora'; Categoria = 'Diagnóstico'; Peligroso = $false; SinDestino = $true; Timeout = 600; Simulable = $true
         Descripcion = 'Va lento ahora mismo: mide unos segundos y dice qué proceso satura procesador, disco y memoria, con opción de cerrarlo o parar el servicio.'
         Ayuda = 'Usa los contadores de rendimiento de Windows. Enseña los 5 que más consumen de cada recurso y deja marcar qué cerrar (con educación; a la fuerza solo si no responde, y se dice cuál) o qué servicio prescindible parar hasta el próximo reinicio. Nunca ofrece procesos del sistema ni el antivirus. Lo que no esté guardado en un programa cerrado se pierde.' }

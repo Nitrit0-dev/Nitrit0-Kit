@@ -34,7 +34,7 @@ foreach ($c in $Carpetas) {
 }
 
 # El ejecutable de la app en la raíz (si está): con huella, para que «Salud del pendrive» detecte que lo han cambiado
-foreach ($n in 'Nitrit0.exe', 'Nitrit0_Limpieza.exe', 'App\Motor\Nitrit0 Kit.exe', 'App\Motor\resources\app.asar', 'App\MotorLimpieza\Nitrit0 Limpieza.exe', 'App\MotorLimpieza\resources\app.asar') {
+foreach ($n in 'Nitrit0.exe', 'Nitrit0_Limpieza.exe', 'Nitrit0_Antivirus.exe', 'Nitrit0_Clonador.exe', 'App\MotorAntivirus\Nitrit0 Antivirus.exe', 'App\MotorAntivirus\resources\app.asar', 'App\MotorClonador\Nitrit0 Clonador.exe', 'App\MotorClonador\resources\app.asar', 'App\Motor\Nitrit0 Kit.exe', 'App\Motor\resources\app.asar', 'App\MotorLimpieza\Nitrit0 Limpieza.exe', 'App\MotorLimpieza\resources\app.asar') {
     $f = Join-Path $RootDir $n
     if (Test-Path -LiteralPath $f -PathType Leaf) { $Lista += [ordered]@{ R = $n; L = (Get-Item -LiteralPath $f).Length; H = (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash } }
 }

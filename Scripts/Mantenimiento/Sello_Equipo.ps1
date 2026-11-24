@@ -17,7 +17,7 @@ try { New-Item -ItemType Directory -Force $carpeta | Out-Null } catch { Exit-Kit
 function Get-Foto {
     $bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue; $placa = Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
     $sis = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue; $so = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    $discos = @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Model.Trim()) | serie $(([string]$_.SerialNumber).Trim()) | $([int]($_.Size / 1GB)) GB" })
+    $discos = @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue | ForEach-Object { "$(([string]$_.Model).Trim()) | serie $(([string]$_.SerialNumber).Trim()) | $([int]($_.Size / 1GB)) GB" })
     $usuarios = @(try { Get-LocalUser -ErrorAction Stop | ForEach-Object { "$($_.Name)$(if (-not $_.Enabled) { ' (desactivada)' })" } } catch { })
     $admins = @(try { Get-LocalGroupMember -SID 'S-1-5-32-544' -ErrorAction Stop | ForEach-Object { $_.Name } } catch { })
     $certs = @(try { Get-ChildItem Cert:\LocalMachine\Root -ErrorAction Stop | ForEach-Object { "$($_.Thumbprint) | $(($_.Subject -replace '\s+', ' ').Trim())" } } catch { })
@@ -85,7 +85,7 @@ $cambios += Compare-Lista 'Administradores' @($antes.Administradores) @($ahora.A
 $cambios += Compare-Lista 'Certificados raíz de confianza' @($antes.Certificados) @($ahora.Certificados) 'Certificado nuevo' 'Certificado quitado'
 $cambios += Compare-Lista 'Programas instalados' @($antes.Programas) @($ahora.Programas) 'Instalado' 'Desinstalado'
 $entrega = Join-Path $carpeta "Sello_${nombre}_${marca}_entrega.json"
-try { [IO.File]::WriteAllText($entrega, ($ahora | ConvertTo-Json -Depth 4), (New-Object Text.UTF8Encoding($true))) } catch { }
+try { [IO.File]::WriteAllText($entrega, ($ahora | ConvertTo-Json -Depth 4), (New-Object Text.UTF8Encoding($true))) } catch { Write-Output "  $($E.Error) No se pudo guardar el sello de entrega: $($_.Exception.Message)"; Write-Log "Sello_Equipo: no se guardó la entrega: $($_.Exception.Message)" 'ERROR'; Exit-Kit 'Error' 'El sello de entrega no se ha guardado.' }
 Write-Output ""
 if ($cambios) { Write-Output "  $($E.Info) $cambios diferencia(s) con la recepción. Lo de programas es lo normal si has instalado o quitado algo; revisa especialmente cuentas, administradores y certificados." }
 else { Write-Output "  $($E.OK) Nada ha cambiado desde la recepción." }

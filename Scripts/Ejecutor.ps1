@@ -81,7 +81,7 @@ namespace Nit {
             l.P.Start(); l.P.StandardInput.Close(); l.P.BeginOutputReadLine(); l.P.BeginErrorReadLine();
             return l;
         }
-        public void Matar() { try { Process k = Process.Start(new ProcessStartInfo("taskkill.exe", "/PID " + P.Id + " /T /F") { CreateNoWindow = true, UseShellExecute = false }); k.WaitForExit(5000); } catch { } }
+        public void Matar() { try { string tk = System.IO.Path.Combine(Environment.SystemDirectory, "taskkill.exe"); Process k = Process.Start(new ProcessStartInfo(tk, "/PID " + P.Id + " /T /F") { CreateNoWindow = true, UseShellExecute = false }); k.WaitForExit(5000); } catch { } }   // ruta completa: con «taskkill.exe» a secas, un ejecutable de ese nombre en la carpeta de trabajo (%TEMP%) correría como administrador
     }
 }
 '@
@@ -140,7 +140,7 @@ function Show-Ejecucion($h, $propietario) {
     $S = @{ Vistas = (New-Object 'Collections.Generic.HashSet[long]'); Tick = 0; T0 = Get-Date; Fin = $false; Motivo = ''; Cancelado = $false; Agotado = $false; SinUnidad = $false; Desc = $null; Lineas = New-Object Collections.Generic.List[string] }
     $orden = New-OrdenScript $ruta
     Write-Historial "Ejecutó script $($h.Script)"; Write-Log "Script $($h.Script) iniciado desde el lanzador (máx. $limite s)"
-    $S.L = [Nit.Lanzado]::Iniciar('powershell.exe', $orden, $env:TEMP, $Global:NitKit.Raiz)
+    $S.L = [Nit.Lanzado]::Iniciar((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'), $orden, $env:TEMP, $Global:NitKit.Raiz)
     $txt.AppendText("Iniciando $($h.N)…`r`n")
 
     $tm = New-Object Windows.Forms.Timer; $tm.Interval = 200
@@ -161,7 +161,8 @@ function Show-Ejecucion($h, $propietario) {
             }
             $est.Text = "En ejecución · $([timespan]::FromSeconds($seg).ToString('mm\:ss')) de máx. $([int]($limite / 60)) min$(if ($S.SinUnidad) { ' · ' + $Global:E.Aviso + ' unidad desconectada' } else { '' })"
             $est.ForeColor = if ($S.SinUnidad) { Get-Tc 'Aviso' } else { Get-Tc 'TextoSuave' }
-            if ($seg -ge $limite -and -not $S.L.P.HasExited) { $S.Agotado = $true; $S.L.Matar(); $txt.AppendText("`r`n$($Global:E.Aviso) Tiempo máximo ($([int]($limite / 60)) min) agotado: se canceló el script.`r`n") }
+            # El aviso se escribe una vez; si el proceso sigue vivo se reintenta el corte cada 10 ticks (antes se repetía taskkill y el aviso en cada tick hasta que muriera)
+            if ($seg -ge $limite -and -not $S.L.P.HasExited -and (-not $S.Agotado -or $S.Tick % 10 -eq 0)) { if (-not $S.Agotado) { $txt.AppendText("`r`n$($Global:E.Aviso) Tiempo máximo ($([int]($limite / 60)) min) agotado: se canceló el script.`r`n") }; $S.Agotado = $true; $S.L.Matar() }
             if ($S.L.P.HasExited -and $S.L.Cola.IsEmpty) {
                 $S.Fin = $true; $barra.Style = 'Continuous'; $barra.Value = 100
                 $cod = $S.L.P.ExitCode

@@ -1,11 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { resumenGuardado } from '../equipo'
 import { ChevronRight, ClipboardCheck, HeartPulse } from 'lucide-react'
 import { Medidor, NotaSalud, PageHeader, Veredicto } from '../componentes/Basicos'
+import { Bichobit } from '../componentes/Bichobit'
+import { NOMBRE_ETAPA, guardarCriatura, piezasDeAreas, type Etapa } from '../componentes/criatura'
 import { resumenRevision, type Area, type EstadoPaso, type Marca, type RevTotal } from '../revision'
 import type { Dx, Elemento } from '../tipos'
 
 const PUNTO: Record<EstadoPaso | Area['estado'], string> = { espera: 'espera', curso: 'activo', ok: '', aviso: 'aviso', fallo: 'error', noeval: 'info' }
 const ETIQUETA: Record<EstadoPaso | Area['estado'], string> = { espera: 'En espera', curso: 'En curso', ok: 'Correcto', aviso: 'Aviso', fallo: 'Fallo', noeval: 'No evaluado' }
+
+// Cría tras la revisión; joven si además se hicieron comprobaciones manuales (adulta y Superbit llegarán con Arreglar y la entrega)
+const etapaRev = (rev: RevTotal): Etapa => (Object.values(rev.manual).some((m) => m !== 'omitido') ? 1 : 0)
+
+const dosCifras = (n: number) => String(n).padStart(2, '0')
+/** Tiempo transcurrido desde que empezó la revisión, con la hora de inicio. */
+function Cronometro({ desde }: { desde: number }) {
+  const [ahora, setAhora] = useState(Date.now())
+  useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 1000); return () => clearInterval(id) }, [])
+  const s = Math.max(0, Math.floor((ahora - desde) / 1000))
+  return <p className="nota-vacia" role="timer" aria-label="Tiempo transcurrido">Tiempo transcurrido: <b className="num">{dosCifras(Math.floor(s / 3600))}:{dosCifras(Math.floor(s / 60) % 60)}:{dosCifras(s % 60)}</b> · empezó a las {new Date(desde).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+}
 
 interface Props {
   rev: RevTotal | null; dx: Dx | null; manual: Elemento[]; elementos: Elemento[]; ocupado: boolean
@@ -15,6 +30,13 @@ interface Props {
 
 export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alIniciar, alDetener, alMarcar, alAbrir, alTerminarManual, alReiniciar, alDetalle, alInforme, alLanzar }: Props) {
   const [copiado, setCopiado] = useState(false)
+  const terminada = rev?.fase === 'fin'
+  // Al terminar la revisión se guarda cómo quedó Bichobit en este equipo, para enseñarlo luego en Inicio
+  useEffect(() => {
+    if (!rev || !terminada) return
+    const equipo = resumenGuardado()?.equipo; if (!equipo) return
+    guardarCriatura(equipo, { etapa: etapaRev(rev), piezas: piezasDeAreas(resumenRevision(rev, dx, manual).areas), fecha: Date.now() })
+  }, [terminada]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!rev) return (
     <div className="pagina">
@@ -42,7 +64,7 @@ export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alI
     <section className="bloque" aria-label="Pasos de la revisión">
       <h2>Pasos</h2>
       {rev.pasos.map((p, i) => (
-        <div className="revision" key={p.id} style={{ gridTemplateColumns: '14px 1fr auto' }}>
+        <div className="revision" key={p.id}>
           <span className={`punto ${PUNTO[p.estado]}`} role="img" aria-label={ETIQUETA[p.estado]} />
           <div>
             <b>{i + 1}. {p.titulo}</b>
@@ -59,7 +81,23 @@ export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alI
     <div className="pagina">
       <PageHeader titulo={rev.modo === 'chequeo' ? 'Chequeo de salud en marcha' : 'Revisión a fondo en marcha'} subtitulo="No cierres la app ni uses el equipo mientras corren las pruebas de carga. Puedes cambiar de pantalla: la revisión sigue."
         acciones={<button className="boton peligro-b" disabled={rev.parada} onClick={alDetener}>{rev.parada ? 'Deteniendo…' : 'Detener revisión'}</button>} />
+      <Cronometro desde={rev.t0} />
       {filas}
+      {dx && dx.plan.length > 0 && (
+        <section className="bloque" aria-label="Pruebas del diagnóstico">
+          <h2>Pruebas del diagnóstico · {dx.plan.filter((p) => dx.resultados[p.id]).length} de {dx.plan.length}</h2>
+          {dx.plan.map((p) => {
+            const r = dx.resultados[p.id], ahora = !r && dx.actual === p.id
+            return (
+              <div className="revision" key={p.id}>
+                <span className={`punto ${r ? (r.estado === 'Fallo' ? 'error' : r.estado === 'Aviso' ? 'aviso' : r.estado === 'Info' ? 'info' : '') : ahora ? 'activo' : 'espera'}`} role="img" aria-label={r ? r.estado : ahora ? 'En curso' : 'En espera'} />
+                <div><b>{p.nombre}</b><div className="det">{r ? r.resumen : ahora ? 'Ahora mismo…' : p.grupo}</div></div>
+                <span className="sub-linea">{r ? r.estado : ahora ? 'En curso' : 'En espera'}</span>
+              </div>
+            )
+          })}
+        </section>
+      )}
     </div>
   )
 
@@ -72,7 +110,7 @@ export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alI
         {manual.map((e) => {
           const m = rev.manual[e.id] ?? null
           return (
-            <div className="revision" key={e.id} style={{ gridTemplateColumns: '14px 1fr auto' }}>
+            <div className="revision" key={e.id}>
               <span className={`punto ${m === 'bien' ? '' : m === 'mal' ? 'error' : 'info'}`} role="img" aria-label={m ?? 'Sin marcar'} />
               <div><b>{e.titulo}</b><div className="det">{e.descripcion}</div></div>
               <div className="filtros" role="group" aria-label={`Resultado de ${e.titulo}`}>
@@ -95,7 +133,11 @@ export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alI
         acciones={<><button className="boton" onClick={copiar}>{copiado ? 'Copiado' : 'Copiar resumen'}</button><button className="boton" onClick={alReiniciar}>Nueva revisión</button></>} />
       <section className="resumen-dx con-nota" aria-label="Nota">
         <NotaSalud nota={r.nota} />
-        <div style={{ flex: 1, minWidth: 260 }}>
+        <div className="bichobit-ficha">
+          <Bichobit etapa={etapaRev(rev)} piezas={piezasDeAreas(r.areas)} escala={9} />
+          <span>{NOMBRE_ETAPA[etapaRev(rev)]}</span>
+        </div>
+        <div className="bloque-ancho">
           <Veredicto tono={r.fallos ? 'error' : r.avisos ? 'aviso' : 'ok'} titulo={r.fallos ? `Hay ${r.fallos === 1 ? 'una cosa' : `${r.fallos} cosas`} que arreglar` : r.avisos ? 'Sano, con algún aviso' : 'El equipo está sano'}>
             {r.fallos || r.avisos ? `${r.fallos} fallo(s) y ${r.avisos} aviso(s). Lo que no se pudo evaluar no resta nota.` : 'Sin fallos ni avisos en lo que se ha podido comprobar. Una revisión de minutos no descarta fallos que solo salen tras horas de uso.'}
           </Veredicto>
@@ -109,7 +151,7 @@ export default function RevisionTotal({ rev, dx, manual, elementos, ocupado, alI
       <section className="bloque" aria-label="Resultado por áreas">
         <h2>Por áreas</h2>
         {r.areas.map((a) => (
-          <div className="revision" key={a.nombre} style={{ gridTemplateColumns: '14px 1fr auto' }}>
+          <div className="revision" key={a.nombre}>
             <span className={`punto ${PUNTO[a.estado]}`} role="img" aria-label={ETIQUETA[a.estado]} />
             <div><b>{a.nombre}</b>{a.detalle && <div className="det">{a.detalle}</div>}</div>
             <span className="sub-linea">{ETIQUETA[a.estado]}</span>

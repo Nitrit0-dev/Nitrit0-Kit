@@ -72,8 +72,46 @@ $cat = @(
     [pscustomobject]@{ Id = 'windowsold'; Nombre = 'Windows.old (versión anterior de Windows)'; Aviso = 'Al quitarlo ya NO se puede volver a la versión anterior de Windows. Windows lo borra solo a los 10 días.'; Marcado = $false
         Rutas = @("$sd\Windows.old"); Tam = 0 }
 )
+# Perfiles de usuario sin uso en 90 días: ni el actual, ni los cargados, ni los de administración. Windows a veces pone LastUseTime a «ahora» sin que nadie inicie sesión,
+# así que se exige además que NTUSER.DAT lleve más de 90 días sin tocarse (ante la duda, el perfil se deja).
+function Get-PerfilesInactivos {
+    $usuario = ''; try { $u = (Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).UserName; if ($u) { $usuario = ($u -split '\\')[-1].ToLower() } } catch { }
+    $limite = (Get-Date).AddDays(-90)
+    foreach ($p in @(Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { -not $_.Special -and -not $_.Loaded -and $_.LocalPath -like "$sd\Users\*" })) {
+        $n = (Split-Path -Leaf $p.LocalPath).ToLower()
+        if (($n -in @('administrator', 'administrador', 'default', 'public')) -or $n -like '*admin*' -or $n -eq $usuario) { continue }
+        $nt = Get-Item -LiteralPath (Join-Path $p.LocalPath 'NTUSER.DAT') -Force -ErrorAction SilentlyContinue
+        $ult = @($p.LastUseTime, $(if ($nt) { $nt.LastWriteTime })) | Where-Object { $_ } | Sort-Object -Descending | Select-Object -First 1
+        if ($ult -and $ult -lt $limite -and (Test-Path -LiteralPath $p.LocalPath)) { [pscustomobject]@{ Perfil = $p; Nombre = $n; Ultimo = $ult } }
+    }
+}
+# Archivos de OneDrive que están descargados del todo en el disco (los marcados como «solo en la nube» no ocupan). Devuelve carpeta -> bytes.
+function Get-OneDriveLocal {
+    $r = [ordered]@{}
+    foreach ($u in @(Get-ChildItem -LiteralPath "$sd\Users" -Directory -Force -ErrorAction SilentlyContinue)) {
+        foreach ($od in @(Get-ChildItem -LiteralPath $u.FullName -Directory -Filter 'OneDrive*' -Force -ErrorAction SilentlyContinue)) {
+            $b = [int64]0; $pila = New-Object Collections.Generic.Stack[string]; $pila.Push($od.FullName)
+            while ($pila.Count) {
+                foreach ($h in @(Get-ChildItem -LiteralPath $pila.Pop() -Force -ErrorAction SilentlyContinue)) {
+                    if ($h.PSIsContainer) { if (-not (& $esEnlace $h)) { $pila.Push($h.FullName) } }
+                    elseif (-not ($h.Attributes -band 0x1000) -and -not ($h.Attributes -band 0x400000)) { $b += $h.Length }   # 0x1000 Offline, 0x400000 RecallOnDataAccess: ya están solo en la nube
+                }
+            }
+            if ($b -gt 0) { $r[$od.FullName] = $b }
+        }
+    }
+    $r
+}
+$perfiles = @(Get-PerfilesInactivos)
+$onedrive = Get-OneDriveLocal
+$cat += [pscustomobject]@{ Id = 'onedrive'; Nombre = 'OneDrive: liberar lo descargado (los archivos siguen en la nube)'; Aviso = 'Los archivos pasan a «solo en la nube» y se bajan al abrirlos, con conexión. Los que aún no se han subido no se tocan hasta que sincronicen.'; Marcado = $false
+    Rutas = @(); Tam = 0; Datos = $onedrive }
+$cat += [pscustomobject]@{ Id = 'perfiles'; Nombre = "Perfiles de usuario sin uso en 90 días ($($perfiles.Count))"; Aviso = "Se quitan PARA SIEMPRE con todos sus archivos: $((($perfiles | ForEach-Object { $_.Nombre }) -join ', ')). NO se puede deshacer."; Marcado = $false
+    Rutas = @(); Tam = 0; Datos = $perfiles }
 Write-Output "  $($E.Lupa) Calculando cuánto ocupa cada cosa (Windows.old puede tardar un poco)…"
 foreach ($c in $cat) { $c.Tam = Get-TamArchivos $c.Rutas }
+$od = $cat | Where-Object Id -eq 'onedrive'; $od.Tam = [int64]($od.Datos.Values | Measure-Object -Sum).Sum
+$pf = $cat | Where-Object Id -eq 'perfiles'; foreach ($x in $pf.Datos) { $pf.Tam += Get-TamArchivos @([WildcardPattern]::Escape($x.Perfil.LocalPath)) }
 $cat = @($cat | Where-Object { $_.Tam -gt 0 })
 if (-not $cat.Count) { Write-Output "  $($E.OK) No hay nada de esto que limpiar."; Write-Log 'Limpiar_Espacio_Windows: nada'; return }
 Write-Output "  $($E.Info) Se puede recuperar hasta $(Format-Tam ([int64]($cat | Measure-Object Tam -Sum).Sum)) en estas categorías (las sin marcar son opcionales y delicadas):"
@@ -96,7 +134,7 @@ function Show-Categorias($items) {
 }
 $elegidos = @(Show-Categorias $cat)
 if (-not $elegidos.Count) { Exit-Kit 'Cancelado' 'No se limpia nada.' }
-foreach ($d in @($elegidos | Where-Object { $_.Id -in 'windowsold', 'eventos' })) {
+foreach ($d in @($elegidos | Where-Object { $_.Id -in 'windowsold', 'eventos', 'perfiles' })) {
     if (-not (Confirm-Accion "«$($d.Nombre)»`n`n$($d.Aviso)`n`n¿Seguro que quieres quitarlo?" 'Nitrit0 Kit' -Siempre)) { $elegidos = @($elegidos | Where-Object { $_.Id -ne $d.Id }); Write-Output "  $($E.Info) Se deja «$($d.Nombre)»." }
 }
 if (-not $elegidos.Count) { Exit-Kit 'Cancelado' 'No se limpia nada.' }
@@ -110,11 +148,20 @@ foreach ($c in $elegidos) {
     try {
         switch ($c.Id) {
             'delivery' { try { Delete-DeliveryOptimizationCache -Force -ErrorAction Stop } catch { Remove-Rutas $c.Rutas } }
-            'eventos' { foreach ($n in @(& wevtutil.exe el 2>$null)) { if ($n -and $n -ne 'Security') { & wevtutil.exe cl $n 2>&1 | Out-Null } } }
+            'eventos' { foreach ($n in @(& (Join-Path $env:SystemRoot 'System32\wevtutil.exe') el 2>$null)) { if ($n -and $n -ne 'Security') { & (Join-Path $env:SystemRoot 'System32\wevtutil.exe') cl $n 2>&1 | Out-Null } } }
             'windowsold' {
-                & takeown.exe /f "$sd\Windows.old" /r /d s 2>&1 | Out-Null
-                & icacls.exe "$sd\Windows.old" /grant "*S-1-5-32-544:(F)" /t /c /q 2>&1 | Out-Null
+                & (Join-Path $env:SystemRoot 'System32\icacls.exe') "$sd\Windows.old" /setowner '*S-1-5-32-544' /t /c /q 2>&1 | Out-Null   # takeown /d depende del idioma de Windows (s/y/j…); el SID de Administradores no
+                & (Join-Path $env:SystemRoot 'System32\icacls.exe') "$sd\Windows.old" /grant "*S-1-5-32-544:(F)" /t /c /q 2>&1 | Out-Null
                 Remove-Item -LiteralPath "$sd\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            'onedrive' {
+                foreach ($carpeta in $c.Datos.Keys) { [void](Invoke-Proceso (Join-Path $env:SystemRoot 'System32\attrib.exe') "+U -P `"$carpeta\*`" /s /d" 900 'Liberar OneDrive' 30) }
+            }
+            'perfiles' {
+                foreach ($x in $c.Datos) {
+                    try { Remove-CimInstance -InputObject $x.Perfil -ErrorAction Stop; Write-Output "    $($E.OK) Perfil quitado: $($x.Nombre) (último uso $($x.Ultimo.ToString('dd/MM/yyyy')))." }
+                    catch { $errores++; Write-Output "    $($E.Aviso) No se pudo quitar el perfil $($x.Nombre): $($_.Exception.Message)" }
+                }
             }
             default { Remove-Rutas $c.Rutas }
         }

@@ -103,7 +103,7 @@ if ($Faltantes) {
     if ($SoloAnalizar) { Write-Output "`n  $($E.Info) Solo búsqueda: no se ha descargado ni instalado nada ($($hay.Count) driver(s) disponibles)."; Write-Log "Instalar_Driver_Catalogo: -Faltantes búsqueda, $($hay.Count) disponibles"; exit 0 }
     $sel = Show-Marcables 'Drivers que faltan' "Estos drivers están en el Catálogo de Microsoft Update para tu Windows, con firma de Microsoft. Marca los que quieres instalar; se crea un punto de restauración antes y cada uno se verifica antes de instalarse." @($hay) 'Instalar lo marcado'
     if ($null -eq $sel -or -not $sel.Count) { Write-Output "  $($E.Info) Cancelado: no se ha cambiado nada."; exit 2 }
-    $base = Join-Path (Get-BaseTrabajo) 'Drivers\Catalogo'
+    $base = Join-Path $Global:NitKit.Cache 'Drivers\Catalogo'   # en el PC (rápido y sin desgastar el pendrive); se borra al terminar
     $paraInstalar = New-Object Collections.Generic.List[object]; $fallos = 0; $k = 0
     foreach ($s in $sel) {
         $k++; $g = $s.Elegido
@@ -126,7 +126,7 @@ if ($Faltantes) {
             $paraInstalar.Add([pscustomobject]@{ S = $s; Ext = $ext })
         } catch { $fallos++; Write-Output "    $($E.Error) $($s.Nombres): $($_.Exception.Message). No se instala."; Write-Log "Instalar_Driver_Catalogo: -Faltantes fallo en $($s.Id): $($_.Exception.Message)" 'ERROR' }
     }
-    if (-not $paraInstalar.Count) { Write-Output "`n  $($E.Error) Ningún driver superó la descarga y la verificación. No se ha cambiado nada."; exit 1 }
+    if (-not $paraInstalar.Count) { Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue; Write-Output "`n  $($E.Error) Ningún driver superó la descarga y la verificación. No se ha cambiado nada."; exit 1 }
     [void](New-PuntoRestauracionSeguro 'Nitrit0 - antes de instalar los drivers que faltan')
     $ok = 0; $reinicio = $false; $k = 0
     foreach ($p in $paraInstalar) {
@@ -135,6 +135,7 @@ if ($Faltantes) {
         if ($i.Codigo -eq 0 -or $i.Codigo -eq 3010) { $ok++; if ($i.Codigo -eq 3010) { $reinicio = $true }; Write-Output "    $($E.OK) Instalado."; Write-Log "Instalar_Driver_Catalogo: -Faltantes instalado $($p.S.Elegido.Titulo) para $($p.S.Id) (código $($i.Codigo))" }
         else { $fallos++; Write-Output "    $($E.Error) pnputil no pudo instalarlo (código $($i.Codigo))."; Write-Log "Instalar_Driver_Catalogo: -Faltantes fallo pnputil $($i.Codigo) para $($p.S.Id)" 'ERROR' }
     }
+    Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue   # los .cab y lo extraído ya no hacen falta
     Start-Sleep -Seconds 3
     $quedan = @(Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.ConfigManagerErrorCode -in 28, 1 }).Count
     Write-Output "`n  $($E.Disco) Resultado: $ok instalado(s), $fallos con problema. Dispositivos que siguen sin driver: $quedan (antes $($prob.Count))."
@@ -164,25 +165,28 @@ if (-not $SoloDescargar -and -not (Confirm-Accion ("Dispositivo: $nombre`n`nDriv
 
 $urls = @(Get-UrlDescarga $elegido.Id | Where-Object { $_ -match '^https://[A-Za-z0-9\.\-]+\.(windowsupdate\.com|delivery\.mp\.microsoft\.com|download\.microsoft\.com)/.+\.cab$' })
 if (-not $urls.Count) { Write-Output "$($E.Error) El Catálogo no devolvió un archivo de descarga de un servidor de Microsoft. No se descarga nada."; Write-Log "Instalar_Driver_Catalogo: sin URL válida para $($elegido.Id)" 'ERROR'; exit 1 }
-$dirDrv = Join-Path (Get-BaseTrabajo) ('Drivers\Catalogo\' + ($id -replace '[^A-Za-z0-9_&\-]', '_'))
+# Para instalar se trabaja en el PC (rápido, sin desgastar el pendrive) y se borra al terminar. Solo con -SoloDescargar (guardar el driver a mano) va al pendrive.
+$dirDrv = Join-Path $(if ($SoloDescargar) { Get-BaseTrabajo } else { $Global:NitKit.Cache }) ('Drivers\Catalogo\' + ($id -replace '[^A-Za-z0-9_&\-]', '_'))
+$limpiarTrabajo = { if (-not $SoloDescargar) { Remove-Item -LiteralPath $dirDrv -Recurse -Force -ErrorAction SilentlyContinue } }
 $libre = (Get-PSDrive -Name (Split-Path $dirDrv -Qualifier).TrimEnd(':') -ErrorAction SilentlyContinue).Free
 if ($libre -and $libre -lt ($elegido.Tam * 3)) { Write-Output "$($E.Error) No hay sitio: hacen falta unos $(Format-Tam ($elegido.Tam * 3)) libres (descarga y descompresión) y hay $(Format-Tam $libre)."; exit 1 }
 New-Item -ItemType Directory -Force $dirDrv | Out-Null
 $cab = Join-Path $dirDrv ([IO.Path]::GetFileName($urls[0]))
 Write-Output "  $($E.Reloj) Descargando $(Format-Tam $elegido.Tam)…"
-if (-not (Get-Descarga $urls[0] $cab 3600 2 'Descarga del driver')) { Write-Output "$($E.Error) La descarga falló."; exit 1 }
+if (-not (Get-Descarga $urls[0] $cab 3600 2 'Descarga del driver')) { & $limpiarTrabajo; Write-Output "$($E.Error) La descarga falló."; exit 1 }
 $ext = Join-Path $dirDrv 'extraido'; Remove-Item -LiteralPath $ext -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $ext | Out-Null
 $x = Invoke-Proceso (Join-Path $env:SystemRoot 'System32\expand.exe') ('-F:* "{0}" "{1}"' -f $cab, $ext) 1800 'Descomprimir' 30
 $infs = @(Get-ChildItem -LiteralPath $ext -Recurse -Filter *.inf -File -ErrorAction SilentlyContinue); $cats = @(Get-ChildItem -LiteralPath $ext -Recurse -Filter *.cat -File -ErrorAction SilentlyContinue)
-if ($x.Codigo -ne 0 -or -not $infs.Count) { Write-Output "$($E.Error) El archivo descargado no contiene un driver válido."; exit 1 }
+if ($x.Codigo -ne 0 -or -not $infs.Count) { & $limpiarTrabajo; Write-Output "$($E.Error) El archivo descargado no contiene un driver válido."; exit 1 }
 # Firma: cada catálogo (.cat) debe ser válido y de Microsoft (los drivers certificados WHQL lo llevan)
 $malos = @($cats | Where-Object { $s = Get-AuthenticodeSignature -LiteralPath $_.FullName; $s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'O=Microsoft' })
-if (-not $cats.Count -or $malos.Count) { Write-Output "$($E.Error) La firma del driver no es válida ($($malos.Count) de $($cats.Count) catálogos sin firma de Microsoft). No se instala."; Write-Log "Instalar_Driver_Catalogo: firma no válida para $id" 'ERROR'; exit 1 }
+if (-not $cats.Count -or $malos.Count) { & $limpiarTrabajo; Write-Output "$($E.Error) La firma del driver no es válida ($($malos.Count) de $($cats.Count) catálogos sin firma de Microsoft). No se instala."; Write-Log "Instalar_Driver_Catalogo: firma no válida para $id" 'ERROR'; exit 1 }
 Write-Output "  $($E.OK) Verificado: $($infs.Count) archivo(s) .inf y $($cats.Count) catálogo(s) con firma válida de Microsoft."
 if ($SoloDescargar) { Write-Output "`n  $($E.Info) Solo descarga: no se ha instalado nada. Driver en: $ext"; Write-Log "Instalar_Driver_Catalogo: descargado y verificado $id"; exit 0 }
 
 [void](New-PuntoRestauracionSeguro "Nitrit0 - antes de instalar el driver $id")
 $i = Invoke-Proceso (Join-Path $env:SystemRoot 'System32\pnputil.exe') ('/add-driver "{0}\*.inf" /subdirs /install' -f $ext) 1800 'Instalar driver' 30 -MostrarSalida
+& $limpiarTrabajo   # ya instalado (o fallido): el .cab y lo extraído sobran
 if ($i.Codigo -eq 0 -or $i.Codigo -eq 3010) {
     Write-Output "`n$($E.OK) Driver instalado: $($elegido.Titulo) v$($elegido.Version).$(if ($i.Codigo -eq 3010) { ' Reinicia el equipo para terminar.' } else { '' })"
     Write-Log "Instalar_Driver_Catalogo: instalado $($elegido.Titulo) v$($elegido.Version) para $id (código $($i.Codigo))"
